@@ -1,0 +1,8 @@
+.tools/
+**/build/
+**/.dart_tool/
+**/.idea/
+app/ios/Pods/
+app/ios/.symlinks/
+app/ios/Flutter/ephemeral/
+app/android/.gradle/
