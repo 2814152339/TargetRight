@@ -1,7 +1,13 @@
-name: iOS Unsigned IPA
+name: iOS Unsigned IPA v2
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "app/**"
+      - ".github/workflows/ios-unsigned-ipa.yml"
 
 jobs:
   build-ios-ipa:
