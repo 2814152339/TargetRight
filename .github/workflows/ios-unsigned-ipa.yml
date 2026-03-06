@@ -30,8 +30,15 @@ jobs:
       - name: Run Unit Tests
         run: flutter test
 
-      - name: Build Unsigned IPA
-        run: flutter build ipa --release --no-codesign
+      - name: Build iOS app (no codesign)
+        run: flutter build ios --release --no-codesign
+
+      - name: Pack unsigned ipa
+        run: |
+          mkdir -p build/ios/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -r Runner-unsigned.ipa Payload
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
