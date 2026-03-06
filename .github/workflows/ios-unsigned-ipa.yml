@@ -35,14 +35,24 @@ jobs:
 
       - name: Pack unsigned ipa
         run: |
+          set -euxo pipefail
+          rm -rf build/ios/ipa
           mkdir -p build/ios/ipa/Payload
           cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
           cd build/ios/ipa
           zip -r Runner-unsigned.ipa Payload
+          ls -lah
+          test -f Runner-unsigned.ipa
+
+      - name: Prepare artifact
+        run: |
+          set -euxo pipefail
+          mkdir -p ../artifacts
+          cp build/ios/ipa/Runner-unsigned.ipa ../artifacts/Runner-unsigned.ipa
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: jinshi-checkin-ios-unsigned-ipa
-          path: app/build/ios/ipa/*.ipa
+          path: artifacts/Runner-unsigned.ipa
           if-no-files-found: error
