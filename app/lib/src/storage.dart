@@ -2,17 +2,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models.dart';
 
-class LocalStore {
-  static const _snapshotKey = 'jinshi.snapshot.v1';
+const appSnapshotStorageKey = 'animal_park.snapshot.v2';
 
-  Future<PersistedSnapshot> load() async {
+class LocalStore {
+  Future<AppSnapshot> load() async {
     final prefs = await SharedPreferences.getInstance();
-    final value = prefs.getString(_snapshotKey);
-    return PersistedSnapshot.fromJsonString(value);
+    return AppSnapshot.fromJsonString(prefs.getString(appSnapshotStorageKey));
   }
 
-  Future<void> save(PersistedSnapshot snapshot) async {
+  Future<void> save(AppSnapshot snapshot) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_snapshotKey, snapshot.toJsonString());
+    await prefs.setString(appSnapshotStorageKey, snapshot.toJsonString());
   }
 }

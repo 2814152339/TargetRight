@@ -1,232 +1,209 @@
 import 'dart:convert';
 
-enum TaskType { single, recurring }
+enum CheckInStatus { done, missed }
 
-enum CheckInState { done, missed }
-
-enum InteractionTemplate { tree, egg, tower, muscle }
-
-class HabitTask {
-  HabitTask({
+class AnimalDefinition {
+  const AnimalDefinition({
     required this.id,
     required this.name,
-    required this.type,
-    required this.createdAt,
-    required this.enabled,
-    required this.isDual,
-    required this.progress,
-    required this.interaction,
-    this.singleDateTime,
-    this.intervalMinutes,
-    this.startMinuteOfDay,
-    this.endMinuteOfDay,
-    this.startDate,
-    this.endDate,
-    this.colorValue,
+    required this.emoji,
+    required this.price,
+    this.isStarter = false,
   });
 
   final String id;
   final String name;
-  final TaskType type;
-  final DateTime createdAt;
-  final bool enabled;
-  final bool isDual;
-  final int progress;
-  final InteractionTemplate interaction;
+  final String emoji;
+  final int price;
+  final bool isStarter;
+}
 
-  final DateTime? singleDateTime;
-  final int? intervalMinutes;
-  final int? startMinuteOfDay;
-  final int? endMinuteOfDay;
-  final DateTime? startDate;
-  final DateTime? endDate;
-  final int? colorValue;
+const animalCatalog = <AnimalDefinition>[
+  AnimalDefinition(
+    id: 'cat',
+    name: '猫咪',
+    emoji: '🐱',
+    price: 0,
+    isStarter: true,
+  ),
+  AnimalDefinition(id: 'rabbit', name: '兔子', emoji: '🐰', price: 1),
+  AnimalDefinition(id: 'dog', name: '狗', emoji: '🐶', price: 6),
+  AnimalDefinition(id: 'fox', name: '狐狸', emoji: '🦊', price: 10),
+  AnimalDefinition(id: 'bear', name: '熊', emoji: '🐻', price: 20),
+  AnimalDefinition(id: 'raccoon', name: '浣熊', emoji: '🦝', price: 30),
+];
 
-  HabitTask copyWith({
-    String? id,
-    String? name,
-    TaskType? type,
-    DateTime? createdAt,
-    bool? enabled,
-    bool? isDual,
-    int? progress,
-    InteractionTemplate? interaction,
-    DateTime? singleDateTime,
-    int? intervalMinutes,
-    int? startMinuteOfDay,
-    int? endMinuteOfDay,
-    DateTime? startDate,
-    DateTime? endDate,
-    int? colorValue,
-    bool clearEndDate = false,
-  }) {
-    return HabitTask(
+AnimalDefinition animalById(String id) {
+  return animalCatalog.firstWhere((item) => item.id == id);
+}
+
+class AnimalState {
+  const AnimalState({
+    required this.id,
+    required this.owned,
+    required this.moodPercent,
+  });
+
+  final String id;
+  final bool owned;
+  final int moodPercent;
+
+  AnimalState copyWith({String? id, bool? owned, int? moodPercent}) {
+    return AnimalState(
       id: id ?? this.id,
-      name: name ?? this.name,
-      type: type ?? this.type,
-      createdAt: createdAt ?? this.createdAt,
-      enabled: enabled ?? this.enabled,
-      isDual: isDual ?? this.isDual,
-      progress: progress ?? this.progress,
-      interaction: interaction ?? this.interaction,
-      singleDateTime: singleDateTime ?? this.singleDateTime,
-      intervalMinutes: intervalMinutes ?? this.intervalMinutes,
-      startMinuteOfDay: startMinuteOfDay ?? this.startMinuteOfDay,
-      endMinuteOfDay: endMinuteOfDay ?? this.endMinuteOfDay,
-      startDate: startDate ?? this.startDate,
-      endDate: clearEndDate ? null : (endDate ?? this.endDate),
-      colorValue: colorValue ?? this.colorValue,
+      owned: owned ?? this.owned,
+      moodPercent: moodPercent ?? this.moodPercent,
     );
   }
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       'id': id,
-      'name': name,
-      'type': type.name,
-      'createdAt': createdAt.toIso8601String(),
-      'enabled': enabled,
-      'isDual': isDual,
-      'progress': progress,
-      'interaction': interaction.name,
-      'singleDateTime': singleDateTime?.toIso8601String(),
-      'intervalMinutes': intervalMinutes,
-      'startMinuteOfDay': startMinuteOfDay,
-      'endMinuteOfDay': endMinuteOfDay,
-      'startDate': startDate?.toIso8601String(),
-      'endDate': endDate?.toIso8601String(),
-      'colorValue': colorValue,
+      'owned': owned,
+      'moodPercent': moodPercent,
     };
   }
 
-  static HabitTask fromJson(Map<String, dynamic> json) {
-    return HabitTask(
+  static AnimalState fromJson(Map<String, dynamic> json) {
+    return AnimalState(
       id: json['id'] as String,
-      name: json['name'] as String,
-      type: TaskType.values.firstWhere((e) => e.name == json['type']),
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      enabled: json['enabled'] as bool? ?? true,
-      isDual: json['isDual'] as bool? ?? false,
-      progress: json['progress'] as int? ?? 0,
-      interaction: InteractionTemplate.values.firstWhere(
-        (e) =>
-            e.name ==
-            (json['interaction'] as String? ?? InteractionTemplate.tree.name),
-      ),
-      singleDateTime: _parseDate(json['singleDateTime']),
-      intervalMinutes: json['intervalMinutes'] as int?,
-      startMinuteOfDay: json['startMinuteOfDay'] as int?,
-      endMinuteOfDay: json['endMinuteOfDay'] as int?,
-      startDate: _parseDate(json['startDate']),
-      endDate: _parseDate(json['endDate']),
-      colorValue: json['colorValue'] as int?,
+      owned: json['owned'] as bool? ?? false,
+      moodPercent: json['moodPercent'] as int? ?? 0,
     );
   }
 }
 
-class CheckInRecord {
-  CheckInRecord({
-    required this.pointId,
-    required this.taskId,
-    required this.plannedTime,
-    required this.updatedAt,
-    this.yourState,
-    this.partnerState,
+class AppSnapshot {
+  const AppSnapshot({
+    required this.coins,
+    required this.feedChances,
+    required this.streakDays,
+    required this.selectedAnimalId,
+    required this.reminderHour,
+    required this.reminderMinute,
+    required this.animals,
+    required this.dailyRecords,
+    required this.lastDoneDateKey,
   });
 
-  final String pointId;
-  final String taskId;
-  final DateTime plannedTime;
-  final DateTime updatedAt;
-  final CheckInState? yourState;
-  final CheckInState? partnerState;
-
-  bool isFinalDone(bool isDual) {
-    if (!isDual) {
-      return yourState == CheckInState.done;
+  factory AppSnapshot.initial() {
+    final animals = <String, AnimalState>{};
+    for (final item in animalCatalog) {
+      animals[item.id] = AnimalState(
+        id: item.id,
+        owned: item.isStarter,
+        moodPercent: 0,
+      );
     }
-    return yourState == CheckInState.done && partnerState == CheckInState.done;
-  }
-
-  Map<String, dynamic> toJson() {
-    return <String, dynamic>{
-      'pointId': pointId,
-      'taskId': taskId,
-      'plannedTime': plannedTime.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
-      'yourState': yourState?.name,
-      'partnerState': partnerState?.name,
-    };
-  }
-
-  static CheckInRecord fromJson(Map<String, dynamic> json) {
-    final yourStateName = json['yourState'] as String?;
-    final partnerStateName = json['partnerState'] as String?;
-    return CheckInRecord(
-      pointId: json['pointId'] as String,
-      taskId: json['taskId'] as String,
-      plannedTime: DateTime.parse(json['plannedTime'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
-      yourState: yourStateName == null
-          ? null
-          : CheckInState.values.firstWhere((e) => e.name == yourStateName),
-      partnerState: partnerStateName == null
-          ? null
-          : CheckInState.values.firstWhere((e) => e.name == partnerStateName),
+    return AppSnapshot(
+      coins: 0,
+      feedChances: 0,
+      streakDays: 0,
+      selectedAnimalId: 'cat',
+      reminderHour: 9,
+      reminderMinute: 0,
+      animals: animals,
+      dailyRecords: const <String, CheckInStatus>{},
+      lastDoneDateKey: null,
     );
   }
-}
 
-class PersistedSnapshot {
-  PersistedSnapshot({
-    required this.tasks,
-    required this.checkIns,
-    required this.isVip,
-    required this.featureFlagDualOpen,
-  });
+  final int coins;
+  final int feedChances;
+  final int streakDays;
+  final String selectedAnimalId;
+  final int reminderHour;
+  final int reminderMinute;
+  final Map<String, AnimalState> animals;
+  final Map<String, CheckInStatus> dailyRecords;
+  final String? lastDoneDateKey;
 
-  final List<HabitTask> tasks;
-  final List<CheckInRecord> checkIns;
-  final bool isVip;
-  final bool featureFlagDualOpen;
+  AppSnapshot copyWith({
+    int? coins,
+    int? feedChances,
+    int? streakDays,
+    String? selectedAnimalId,
+    int? reminderHour,
+    int? reminderMinute,
+    Map<String, AnimalState>? animals,
+    Map<String, CheckInStatus>? dailyRecords,
+    String? lastDoneDateKey,
+    bool clearLastDoneDateKey = false,
+  }) {
+    return AppSnapshot(
+      coins: coins ?? this.coins,
+      feedChances: feedChances ?? this.feedChances,
+      streakDays: streakDays ?? this.streakDays,
+      selectedAnimalId: selectedAnimalId ?? this.selectedAnimalId,
+      reminderHour: reminderHour ?? this.reminderHour,
+      reminderMinute: reminderMinute ?? this.reminderMinute,
+      animals: animals ?? this.animals,
+      dailyRecords: dailyRecords ?? this.dailyRecords,
+      lastDoneDateKey: clearLastDoneDateKey
+          ? null
+          : (lastDoneDateKey ?? this.lastDoneDateKey),
+    );
+  }
 
   String toJsonString() {
     return jsonEncode(<String, dynamic>{
-      'tasks': tasks.map((e) => e.toJson()).toList(),
-      'checkIns': checkIns.map((e) => e.toJson()).toList(),
-      'isVip': isVip,
-      'featureFlagDualOpen': featureFlagDualOpen,
+      'coins': coins,
+      'feedChances': feedChances,
+      'streakDays': streakDays,
+      'selectedAnimalId': selectedAnimalId,
+      'reminderHour': reminderHour,
+      'reminderMinute': reminderMinute,
+      'animals': animals.map((key, value) => MapEntry(key, value.toJson())),
+      'dailyRecords': dailyRecords.map(
+        (key, value) => MapEntry(key, value.name),
+      ),
+      'lastDoneDateKey': lastDoneDateKey,
     });
   }
 
-  static PersistedSnapshot fromJsonString(String? value) {
+  static AppSnapshot fromJsonString(String? value) {
     if (value == null || value.isEmpty) {
-      return PersistedSnapshot(
-        tasks: <HabitTask>[],
-        checkIns: <CheckInRecord>[],
-        isVip: false,
-        featureFlagDualOpen: true,
-      );
+      return AppSnapshot.initial();
     }
     final decoded = jsonDecode(value) as Map<String, dynamic>;
-    final tasks = (decoded['tasks'] as List<dynamic>? ?? <dynamic>[])
-        .map((e) => HabitTask.fromJson(e as Map<String, dynamic>))
-        .toList();
-    final checkIns = (decoded['checkIns'] as List<dynamic>? ?? <dynamic>[])
-        .map((e) => CheckInRecord.fromJson(e as Map<String, dynamic>))
-        .toList();
-    return PersistedSnapshot(
-      tasks: tasks,
-      checkIns: checkIns,
-      isVip: decoded['isVip'] as bool? ?? false,
-      featureFlagDualOpen: decoded['featureFlagDualOpen'] as bool? ?? true,
+    final animalJson =
+        decoded['animals'] as Map<String, dynamic>? ?? <String, dynamic>{};
+    final animals = <String, AnimalState>{};
+    for (final entry in animalJson.entries) {
+      animals[entry.key] = AnimalState.fromJson(
+        entry.value as Map<String, dynamic>,
+      );
+    }
+
+    for (final item in animalCatalog) {
+      animals.putIfAbsent(
+        item.id,
+        () => AnimalState(id: item.id, owned: item.isStarter, moodPercent: 0),
+      );
+    }
+
+    final recordJson =
+        decoded['dailyRecords'] as Map<String, dynamic>? ?? <String, dynamic>{};
+    final records = <String, CheckInStatus>{};
+    for (final entry in recordJson.entries) {
+      records[entry.key] = CheckInStatus.values.firstWhere(
+        (status) => status.name == entry.value,
+      );
+    }
+
+    final selectedAnimalId = decoded['selectedAnimalId'] as String? ?? 'cat';
+    final selectedAnimalOwned = animals[selectedAnimalId]?.owned ?? false;
+
+    return AppSnapshot(
+      coins: decoded['coins'] as int? ?? 0,
+      feedChances: decoded['feedChances'] as int? ?? 0,
+      streakDays: decoded['streakDays'] as int? ?? 0,
+      selectedAnimalId: selectedAnimalOwned ? selectedAnimalId : 'cat',
+      reminderHour: decoded['reminderHour'] as int? ?? 9,
+      reminderMinute: decoded['reminderMinute'] as int? ?? 0,
+      animals: animals,
+      dailyRecords: records,
+      lastDoneDateKey: decoded['lastDoneDateKey'] as String?,
     );
   }
-}
-
-DateTime? _parseDate(Object? value) {
-  if (value == null) {
-    return null;
-  }
-  return DateTime.parse(value as String);
 }

@@ -5,18 +5,19 @@ import 'src/ui.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ProviderScope(child: JinshiApp()));
+  runApp(const ProviderScope(child: AnimalParkApp()));
 }
 
-class JinshiApp extends StatelessWidget {
-  const JinshiApp({super.key});
+class AnimalParkApp extends StatelessWidget {
+  const AnimalParkApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '锦时打卡',
+      title: 'Animal Park',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2C8C66)),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFD28A32)),
         useMaterial3: true,
       ),
       home: const AppShell(),

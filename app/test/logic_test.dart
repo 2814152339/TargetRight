@@ -3,107 +3,52 @@ import 'package:jinshi_checkin/src/logic.dart';
 import 'package:jinshi_checkin/src/models.dart';
 
 void main() {
-  test('循环任务在时间窗口内按间隔生成提醒点', () {
-    final task = HabitTask(
-      id: 't1',
-      name: '喝水',
-      type: TaskType.recurring,
-      createdAt: DateTime(2026, 3, 1),
-      enabled: true,
-      isDual: false,
-      progress: 0,
-      interaction: InteractionTemplate.tree,
-      intervalMinutes: 120,
-      startMinuteOfDay: 9 * 60,
-      endMinuteOfDay: 21 * 60,
-      startDate: DateTime(2026, 3, 6),
+  test('完成一次任务会增加 1 次喂食机会，并更新连胜天数', () {
+    final base = AppSnapshot.initial();
+    final day1 = DateTime(2026, 3, 8, 9);
+    final day2 = DateTime(2026, 3, 9, 9);
+
+    final afterDay1 = applyDailyCheckIn(
+      base,
+      now: day1,
+      status: CheckInStatus.done,
+    );
+    final afterDay2 = applyDailyCheckIn(
+      afterDay1,
+      now: day2,
+      status: CheckInStatus.done,
     );
 
-    final points = plannedTimesForTaskInRange(
-      task,
-      DateTime(2026, 3, 6, 0),
-      DateTime(2026, 3, 6, 23, 59),
-    );
-
-    expect(points.first, DateTime(2026, 3, 6, 9));
-    expect(points.last, DateTime(2026, 3, 6, 21));
-    expect(points.length, 7);
+    expect(afterDay1.feedChances, 1);
+    expect(afterDay1.streakDays, 1);
+    expect(afterDay2.feedChances, 2);
+    expect(afterDay2.streakDays, 2);
   });
 
-  test('待确认提醒点返回最早且你未记录的时间点', () {
-    final task = HabitTask(
-      id: 't1',
-      name: '喝水',
-      type: TaskType.recurring,
-      createdAt: DateTime(2026, 3, 1),
-      enabled: true,
-      isDual: false,
-      progress: 0,
-      interaction: InteractionTemplate.tree,
-      intervalMinutes: 120,
-      startMinuteOfDay: 9 * 60,
-      endMinuteOfDay: 21 * 60,
-      startDate: DateTime(2026, 3, 6),
+  test('喂食让心情 +1%，达到 100% 时奖励 1 金币并重置为 0%', () {
+    final base = AppSnapshot.initial();
+    final cat = base.animals['cat']!;
+    final nearTarget = base.copyWith(
+      feedChances: 1,
+      animals: <String, AnimalState>{
+        ...base.animals,
+        'cat': cat.copyWith(moodPercent: 99),
+      },
     );
 
-    final nine = DateTime(2026, 3, 6, 9);
-    final eleven = DateTime(2026, 3, 6, 11);
-    final checkIns = <String, CheckInRecord>{
-      reminderPointId(task.id, nine): CheckInRecord(
-        pointId: reminderPointId(task.id, nine),
-        taskId: task.id,
-        plannedTime: nine,
-        updatedAt: DateTime(2026, 3, 6, 9, 1),
-        yourState: CheckInState.done,
-      ),
-    };
+    final updated = consumeFeedChance(nearTarget);
+    final updatedCat = updated.animals['cat']!;
 
-    final pending = earliestPendingPoint(
-      task,
-      checkIns,
-      DateTime(2026, 3, 6, 12),
-    );
-
-    expect(pending, eleven);
+    expect(updated.feedChances, 0);
+    expect(updated.coins, 1);
+    expect(updatedCat.moodPercent, 0);
   });
 
-  test('双人任务只有双方都完成才算最终完成', () {
-    final task = HabitTask(
-      id: 't2',
-      name: '运动',
-      type: TaskType.recurring,
-      createdAt: DateTime(2026, 3, 1),
-      enabled: true,
-      isDual: true,
-      progress: 0,
-      interaction: InteractionTemplate.muscle,
-      intervalMinutes: 240,
-      startMinuteOfDay: 8 * 60,
-      endMinuteOfDay: 20 * 60,
-      startDate: DateTime(2026, 3, 6),
-    );
+  test('商店购买会扣金币并解锁动物', () {
+    final base = AppSnapshot.initial().copyWith(coins: 6);
+    final updated = purchaseAnimal(base, 'dog');
 
-    final pointTime = DateTime(2026, 3, 6, 12);
-    final pointId = reminderPointId(task.id, pointTime);
-
-    final recordOnlyMe = CheckInRecord(
-      pointId: pointId,
-      taskId: task.id,
-      plannedTime: pointTime,
-      updatedAt: DateTime(2026, 3, 6, 12, 1),
-      yourState: CheckInState.done,
-      partnerState: null,
-    );
-    final recordBothDone = CheckInRecord(
-      pointId: pointId,
-      taskId: task.id,
-      plannedTime: pointTime,
-      updatedAt: DateTime(2026, 3, 6, 12, 2),
-      yourState: CheckInState.done,
-      partnerState: CheckInState.done,
-    );
-
-    expect(finalStatusForPoint(task, recordOnlyMe), FinalStatus.unrecorded);
-    expect(finalStatusForPoint(task, recordBothDone), FinalStatus.done);
+    expect(updated.coins, 0);
+    expect(updated.animals['dog']!.owned, isTrue);
   });
 }

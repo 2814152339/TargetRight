@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'logic.dart';
@@ -24,51 +25,39 @@ final appControllerProvider = StateNotifierProvider<AppController, AppState>((
 class AppState {
   const AppState({
     required this.initialized,
-    required this.tasks,
-    required this.checkIns,
-    required this.isVip,
-    required this.featureFlagDualOpen,
+    required this.snapshot,
     required this.now,
   });
 
   factory AppState.initial() {
     return AppState(
       initialized: false,
-      tasks: const <HabitTask>[],
-      checkIns: const <String, CheckInRecord>{},
-      isVip: false,
-      featureFlagDualOpen: true,
+      snapshot: AppSnapshot.initial(),
       now: DateTime.now(),
     );
   }
 
   final bool initialized;
-  final List<HabitTask> tasks;
-  final Map<String, CheckInRecord> checkIns;
-  final bool isVip;
-  final bool featureFlagDualOpen;
+  final AppSnapshot snapshot;
   final DateTime now;
 
-  bool get canChooseDualWhenCreate => featureFlagDualOpen || isVip;
+  String get todayKey => dayKey(now);
+  CheckInStatus? get todayStatus => snapshot.dailyRecords[todayKey];
+  AnimalState get selectedAnimal =>
+      snapshot.animals[snapshot.selectedAnimalId] ??
+      const AnimalState(id: 'cat', owned: true, moodPercent: 0);
 
-  List<HabitTask> get recurringTasks => tasks
-      .where((task) => task.type == TaskType.recurring && task.enabled)
-      .toList();
+  List<AnimalState> get ownedAnimals {
+    return animalCatalog
+        .map((item) => snapshot.animals[item.id]!)
+        .where((item) => item.owned)
+        .toList();
+  }
 
-  AppState copyWith({
-    bool? initialized,
-    List<HabitTask>? tasks,
-    Map<String, CheckInRecord>? checkIns,
-    bool? isVip,
-    bool? featureFlagDualOpen,
-    DateTime? now,
-  }) {
+  AppState copyWith({bool? initialized, AppSnapshot? snapshot, DateTime? now}) {
     return AppState(
       initialized: initialized ?? this.initialized,
-      tasks: tasks ?? this.tasks,
-      checkIns: checkIns ?? this.checkIns,
-      isVip: isVip ?? this.isVip,
-      featureFlagDualOpen: featureFlagDualOpen ?? this.featureFlagDualOpen,
+      snapshot: snapshot ?? this.snapshot,
       now: now ?? this.now,
     );
   }
@@ -92,194 +81,86 @@ class AppController extends StateNotifier<AppState> {
     }
 
     final snapshot = await _store.load();
-    final taskList = List<HabitTask>.from(snapshot.tasks)
-      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-    final checkInMap = <String, CheckInRecord>{
-      for (final item in snapshot.checkIns) item.pointId: item,
-    };
-
     state = state.copyWith(
       initialized: true,
-      tasks: taskList,
-      checkIns: checkInMap,
-      isVip: snapshot.isVip,
-      featureFlagDualOpen: snapshot.featureFlagDualOpen,
+      snapshot: snapshot,
       now: DateTime.now(),
     );
 
-    await _notifications.initialize();
+    await _notifications.initialize(_handleReminderAction);
+    await _notifications.scheduleDailyReminder(
+      hour: snapshot.reminderHour,
+      minute: snapshot.reminderMinute,
+    );
     _startTicker();
-    await _refreshNotifications();
   }
 
-  Future<void> upsertTask(HabitTask task) async {
-    final tasks = List<HabitTask>.from(state.tasks);
-    final index = tasks.indexWhere((item) => item.id == task.id);
-    if (index >= 0) {
-      tasks[index] = task;
-    } else {
-      tasks.add(task);
-    }
-    tasks.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-    state = state.copyWith(tasks: tasks);
-    await _persist();
-    await _refreshNotifications();
-  }
-
-  Future<void> setTaskEnabled(String taskId, bool enabled) async {
-    final tasks = state.tasks
-        .map(
-          (task) => task.id == taskId ? task.copyWith(enabled: enabled) : task,
-        )
-        .toList();
-    state = state.copyWith(tasks: tasks);
-    await _persist();
-    await _refreshNotifications();
-  }
-
-  Future<void> deleteTask(String taskId) async {
-    final tasks = state.tasks.where((task) => task.id != taskId).toList();
-    final checkIns = Map<String, CheckInRecord>.from(state.checkIns)
-      ..removeWhere((_, value) => value.taskId == taskId);
-    state = state.copyWith(tasks: tasks, checkIns: checkIns);
-    await _persist();
-    await _refreshNotifications();
-  }
-
-  Future<void> setVip(bool value) async {
-    state = state.copyWith(isVip: value);
-    await _persist();
-  }
-
-  Future<void> setFeatureFlagDualOpen(bool value) async {
-    state = state.copyWith(featureFlagDualOpen: value);
-    await _persist();
-  }
-
-  String createInviteLink(String taskId) {
-    return 'jinshi://invite?task=$taskId&ts=${DateTime.now().millisecondsSinceEpoch}';
-  }
-
-  Future<void> convertTaskToDual(String taskId) async {
-    final tasks = state.tasks.map((task) {
-      if (task.id != taskId) {
-        return task;
-      }
-      return task.copyWith(isDual: true);
-    }).toList();
-    state = state.copyWith(tasks: tasks);
-    await _persist();
-  }
-
-  Future<void> checkInYourself({
-    required String taskId,
-    required DateTime plannedTime,
-    required CheckInState result,
-  }) async {
-    await _applyCheckIn(
-      taskId: taskId,
-      plannedTime: plannedTime,
-      yourState: result,
-      partnerState: null,
+  Future<void> markTodayDone() async {
+    final updated = applyDailyCheckIn(
+      state.snapshot,
+      now: DateTime.now(),
+      status: CheckInStatus.done,
     );
+    await _setSnapshot(updated);
   }
 
-  Future<void> checkInPartner({
-    required String taskId,
-    required DateTime plannedTime,
-    required CheckInState result,
-  }) async {
-    await _applyCheckIn(
-      taskId: taskId,
-      plannedTime: plannedTime,
-      yourState: null,
-      partnerState: result,
+  Future<void> markTodayMissed() async {
+    final updated = applyDailyCheckIn(
+      state.snapshot,
+      now: DateTime.now(),
+      status: CheckInStatus.missed,
     );
+    await _setSnapshot(updated);
   }
 
-  Future<void> _applyCheckIn({
-    required String taskId,
-    required DateTime plannedTime,
-    CheckInState? yourState,
-    CheckInState? partnerState,
-  }) async {
-    final task = state.tasks.where((item) => item.id == taskId).firstOrNull;
-    if (task == null) {
+  Future<void> feedSelectedAnimal() async {
+    final updated = consumeFeedChance(state.snapshot);
+    await _setSnapshot(updated);
+  }
+
+  Future<void> selectAnimal(String animalId) async {
+    final animal = state.snapshot.animals[animalId];
+    if (animal == null || !animal.owned) {
       return;
     }
-
-    final pointId = reminderPointId(taskId, plannedTime);
-    final current = state.checkIns[pointId];
-    final currentFinal = current?.isFinalDone(task.isDual) ?? false;
-    final updated = CheckInRecord(
-      pointId: pointId,
-      taskId: taskId,
-      plannedTime: plannedTime,
-      updatedAt: DateTime.now(),
-      yourState: yourState ?? current?.yourState,
-      partnerState: partnerState ?? current?.partnerState,
-    );
-    final updatedFinal = updated.isFinalDone(task.isDual);
-
-    final checkIns = Map<String, CheckInRecord>.from(state.checkIns)
-      ..[pointId] = updated;
-    var tasks = state.tasks;
-    if (!currentFinal && updatedFinal) {
-      tasks = state.tasks
-          .map(
-            (item) => item.id == taskId
-                ? item.copyWith(progress: item.progress + 1)
-                : item,
-          )
-          .toList();
-    }
-
-    state = state.copyWith(tasks: tasks, checkIns: checkIns);
-    await _persist();
-    await _refreshNotifications();
+    final updated = state.snapshot.copyWith(selectedAnimalId: animalId);
+    await _setSnapshot(updated);
   }
 
-  Future<void> _persist() {
-    final snapshot = PersistedSnapshot(
-      tasks: state.tasks,
-      checkIns: state.checkIns.values.toList(),
-      isVip: state.isVip,
-      featureFlagDualOpen: state.featureFlagDualOpen,
-    );
-    return _store.save(snapshot);
+  Future<bool> buyAnimal(String animalId) async {
+    final updated = purchaseAnimal(state.snapshot, animalId);
+    if (identical(updated, state.snapshot)) {
+      return false;
+    }
+    await _setSnapshot(updated);
+    return true;
   }
 
-  Future<void> _refreshNotifications() async {
-    final now = DateTime.now();
-    final allUpcoming = plannedPointsForTasksInRange(
-      state.tasks.where((task) => task.enabled).toList(),
-      now,
-      now.add(const Duration(days: 14)),
-      maxCount: 128,
+  Future<void> setReminderTime(TimeOfDay time) async {
+    final updated = state.snapshot.copyWith(
+      reminderHour: time.hour,
+      reminderMinute: time.minute,
     );
+    await _setSnapshot(updated);
+    await _notifications.scheduleDailyReminder(
+      hour: time.hour,
+      minute: time.minute,
+    );
+  }
 
-    final items = <NotificationItem>[];
-    for (final point in allUpcoming) {
-      if (!point.time.isAfter(now)) {
-        continue;
-      }
-      final record = state.checkIns[point.pointId];
-      if (record?.yourState != null) {
-        continue;
-      }
-      items.add(
-        NotificationItem(
-          id: point.pointId.hashCode & 0x7fffffff,
-          title: '提醒：${point.task.name}',
-          body: point.task.isDual ? '请完成打卡（双人任务）' : '请完成打卡',
-          time: point.time,
-        ),
-      );
-      if (items.length >= 48) {
-        break;
-      }
+  Future<void> _handleReminderAction(ReminderAction action) async {
+    if (action == ReminderAction.done) {
+      await markTodayDone();
+      return;
     }
-    await _notifications.scheduleUpcoming(items);
+    if (action == ReminderAction.missed) {
+      await markTodayMissed();
+    }
+  }
+
+  Future<void> _setSnapshot(AppSnapshot snapshot) async {
+    state = state.copyWith(snapshot: snapshot, now: DateTime.now());
+    await _store.save(snapshot);
   }
 
   void _startTicker() {
@@ -293,14 +174,5 @@ class AppController extends StateNotifier<AppState> {
   void dispose() {
     _ticker?.cancel();
     super.dispose();
-  }
-}
-
-extension<T> on Iterable<T> {
-  T? get firstOrNull {
-    if (isEmpty) {
-      return null;
-    }
-    return first;
   }
 }
