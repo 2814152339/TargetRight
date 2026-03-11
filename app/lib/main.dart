@@ -177,7 +177,7 @@ class DynamicIslandDripPainter extends CustomPainter {
       tipRadius: 4.9,
       travel: 116,
       anchorLift: -2.0,
-      dropScale: 3.0,
+      dropScale: 2.0,
     ),
     _DripSpec(
       anchorFactor: 0.00,
@@ -640,6 +640,7 @@ class DynamicIslandDripPainter extends CustomPainter {
       x: anchorX,
       y: dropY,
       radius: dropRadius,
+      roundness: _lerp(0.12, 0.96, _easeOutCubic(split)),
       orbCenter: orbCenter,
       orbRadius: orbRadius,
       shadowPaint: shadowPaint,
@@ -663,21 +664,22 @@ class DynamicIslandDripPainter extends CustomPainter {
     final impactY =
         (_orbTopAtX(orbCenter, orbRadius, anchorX) ?? (orbCenter.dy - orbRadius)) +
             spec.tipRadius * 0.12;
+    final upperScale = 1 + (spec.dropScale - 1) * 0.22;
 
     final fullShoulder = _lerp(
-      spec.shoulder * 0.74,
-      spec.shoulder * 0.92,
+      spec.shoulder * 0.78 * upperScale,
+      spec.shoulder * 0.96 * upperScale,
       _easeOutCubic(gather),
     );
     final fullNeck = _lerp(
-      spec.shoulder * 0.62,
-      spec.neck * 0.84,
+      spec.shoulder * 0.68 * upperScale,
+      spec.neck * 0.96 * upperScale,
       _easeInOutCubic(stretch),
     );
-    final attachedLength = 4.8 + _easeOutCubic(stretch) * 10.2;
+    final attachedLength = 2.6 + _easeOutCubic(stretch) * 5.8;
     final attachedTipRadius = _lerp(
       spec.tipRadius * 0.56,
-      spec.tipRadius * 0.94,
+      spec.tipRadius * 0.98 * math.sqrt(spec.dropScale),
       _easeOutCubic(_normalize(phase, 0.16, 0.40)),
     );
 
@@ -718,8 +720,8 @@ class DynamicIslandDripPainter extends CustomPainter {
 
     final tailRecover = _normalize(split, 0.18, 1.0);
     final upperLength = _lerp(
-      attachedLength * 0.92,
-      2.8,
+      attachedLength * 0.82,
+      1.4,
       _easeInOutCubic(tailRecover),
     );
     final upperPath = _buildDripPath(
@@ -766,6 +768,7 @@ class DynamicIslandDripPainter extends CustomPainter {
       x: anchorX,
       y: dropY,
       radius: dropRadius,
+      roundness: _lerp(0.14, 0.92, _easeOutCubic(split)),
       orbCenter: orbCenter,
       orbRadius: orbRadius,
       shadowPaint: shadowPaint,
@@ -947,17 +950,19 @@ class DynamicIslandDripPainter extends CustomPainter {
     required double x,
     required double y,
     required double radius,
+    required double roundness,
     required Offset orbCenter,
     required double orbRadius,
     required Paint shadowPaint,
   }) {
     final mergeTop = _orbTopAtX(orbCenter, orbRadius, x);
     if (mergeTop == null || y < mergeTop - radius * 1.04) {
-      _drawDropCircle(
+      _drawDetachedDrop(
         canvas,
         x: x,
         y: y,
         radius: radius,
+        roundness: roundness,
         orbCenter: orbCenter,
         orbRadius: orbRadius,
         shadowPaint: shadowPaint,
@@ -1090,22 +1095,34 @@ class DynamicIslandDripPainter extends CustomPainter {
     }
   }
 
-  void _drawDropCircle(
+  void _drawDetachedDrop(
     Canvas canvas, {
     required double x,
     required double y,
     required double radius,
+    required double roundness,
     required Offset orbCenter,
     required double orbRadius,
     required Paint shadowPaint,
   }) {
-    canvas.drawCircle(Offset(x, y + 1), radius, shadowPaint);
-    final rect = Rect.fromCircle(center: Offset(x, y), radius: radius);
-    canvas.drawCircle(
-      Offset(x, y),
-      radius,
+    final topShoulder = _lerp(radius * 0.14, radius * 0.94, roundness);
+    final topNeck = _lerp(radius * 0.10, radius * 0.78, roundness);
+    final height = _lerp(radius * 2.6, radius * 1.9, roundness);
+    final topY = y - height;
+    final path = _buildDripPath(
+      anchorX: x,
+      baseY: topY,
+      shoulder: topShoulder,
+      neck: topNeck,
+      length: height,
+      tipRadius: radius,
+    );
+
+    canvas.drawPath(path.shift(const Offset(0, 1)), shadowPaint);
+    canvas.drawPath(
+      path,
       _gradientLiquidPaint(
-        rect,
+        path.getBounds(),
         bottomY: y + radius,
         orbCenter: orbCenter,
         orbRadius: orbRadius,
