@@ -538,7 +538,7 @@ class DynamicIslandDripPainter extends CustomPainter {
       neck: _lerp(fullNeck, spec.neck * 0.14, tailRecover),
       length: upperLength,
       tipRadius: _lerp(
-        attachedTipRadius * 0.36,
+        attachedTipRadius * 0.18,
         spec.tipRadius * 0.08,
         tailRecover,
       ),
@@ -555,9 +555,9 @@ class DynamicIslandDripPainter extends CustomPainter {
     );
 
     final splitEase = _easeOutCubic(split);
-    final dropForm = _easeOutCubic(_normalize(split, 0.0, 0.32));
+    final dropForm = _easeOutCubic(_normalize(split, 0.0, 0.40));
     final dropRadius = _lerp(
-      spec.tipRadius * 0.18,
+      attachedTipRadius * 0.92,
       spec.tipRadius * 1.28,
       dropForm,
     );
@@ -662,7 +662,7 @@ class DynamicIslandDripPainter extends CustomPainter {
       neck: _lerp(fullNeck, spec.neck * 0.20, tailRecover),
       length: upperLength,
       tipRadius: _lerp(
-        attachedTipRadius * 0.34,
+        attachedTipRadius * 0.16,
         spec.tipRadius * 0.08,
         tailRecover,
       ),
@@ -678,9 +678,9 @@ class DynamicIslandDripPainter extends CustomPainter {
       ),
     );
 
-    final dropForm = _easeOutCubic(_normalize(split, 0.0, 0.24));
+    final dropForm = _easeOutCubic(_normalize(split, 0.0, 0.36));
     final dropRadius = _lerp(
-      spec.tipRadius * 0.14,
+      attachedTipRadius * 0.90,
       spec.tipRadius * 1.16 * spec.dropScale,
       dropForm,
     );
