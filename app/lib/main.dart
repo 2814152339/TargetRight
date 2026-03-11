@@ -640,7 +640,6 @@ class DynamicIslandDripPainter extends CustomPainter {
       x: anchorX,
       y: dropY,
       radius: dropRadius,
-      roundness: _lerp(0.12, 0.96, _easeOutCubic(split)),
       orbCenter: orbCenter,
       orbRadius: orbRadius,
       shadowPaint: shadowPaint,
@@ -768,7 +767,6 @@ class DynamicIslandDripPainter extends CustomPainter {
       x: anchorX,
       y: dropY,
       radius: dropRadius,
-      roundness: _lerp(0.14, 0.92, _easeOutCubic(split)),
       orbCenter: orbCenter,
       orbRadius: orbRadius,
       shadowPaint: shadowPaint,
@@ -950,7 +948,6 @@ class DynamicIslandDripPainter extends CustomPainter {
     required double x,
     required double y,
     required double radius,
-    required double roundness,
     required Offset orbCenter,
     required double orbRadius,
     required Paint shadowPaint,
@@ -962,7 +959,6 @@ class DynamicIslandDripPainter extends CustomPainter {
         x: x,
         y: y,
         radius: radius,
-        roundness: roundness,
         orbCenter: orbCenter,
         orbRadius: orbRadius,
         shadowPaint: shadowPaint,
@@ -1100,29 +1096,17 @@ class DynamicIslandDripPainter extends CustomPainter {
     required double x,
     required double y,
     required double radius,
-    required double roundness,
     required Offset orbCenter,
     required double orbRadius,
     required Paint shadowPaint,
   }) {
-    final topShoulder = _lerp(radius * 0.14, radius * 0.94, roundness);
-    final topNeck = _lerp(radius * 0.10, radius * 0.78, roundness);
-    final height = _lerp(radius * 2.6, radius * 1.9, roundness);
-    final topY = y - height;
-    final path = _buildDripPath(
-      anchorX: x,
-      baseY: topY,
-      shoulder: topShoulder,
-      neck: topNeck,
-      length: height,
-      tipRadius: radius,
-    );
-
-    canvas.drawPath(path.shift(const Offset(0, 1)), shadowPaint);
-    canvas.drawPath(
-      path,
+    canvas.drawCircle(Offset(x, y + 1), radius, shadowPaint);
+    final rect = Rect.fromCircle(center: Offset(x, y), radius: radius);
+    canvas.drawCircle(
+      Offset(x, y),
+      radius,
       _gradientLiquidPaint(
-        path.getBounds(),
+        rect,
         bottomY: y + radius,
         orbCenter: orbCenter,
         orbRadius: orbRadius,
