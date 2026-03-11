@@ -40,21 +40,51 @@ class DynamicIslandDripPage extends StatefulWidget {
 class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  late final List<double> _lastPhases;
   int _cycleIndex = 0;
   double _lastValue = 0;
+  double _orbFill = 0.24;
 
   @override
   void initState() {
     super.initState();
+    _lastPhases = List<double>.filled(DynamicIslandDripPainter._drips.length, 0);
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 5600),
+      duration: const Duration(milliseconds: 4480),
     )
       ..addListener(() {
         final value = _controller.value;
+        var nextCycleIndex = _cycleIndex;
+        var nextOrbFill = _orbFill;
+        var needsUpdate = false;
+
         if (value < _lastValue) {
+          nextCycleIndex++;
+          needsUpdate = true;
+        }
+
+        final activeStretchIndex =
+            ((3 * nextCycleIndex) + 2) % DynamicIslandDripPainter._drips.length;
+
+        for (var i = 0; i < DynamicIslandDripPainter._drips.length; i++) {
+          final spec = DynamicIslandDripPainter._drips[i];
+          final phase = DynamicIslandDripPainter._phaseFor(value, spec);
+          final threshold = i == activeStretchIndex ? 0.90 : 0.66;
+          if (_crossedThreshold(_lastPhases[i], phase, threshold)) {
+            nextOrbFill = math.min(
+              0.78,
+              nextOrbFill + (i == activeStretchIndex ? 0.05 : 0.026),
+            );
+            needsUpdate = true;
+          }
+          _lastPhases[i] = phase;
+        }
+
+        if (needsUpdate) {
           setState(() {
-            _cycleIndex++;
+            _cycleIndex = nextCycleIndex;
+            _orbFill = nextOrbFill;
           });
         }
         _lastValue = value;
@@ -83,6 +113,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
               t: _controller.value,
               safeTop: safeTop,
               activeStretchIndex: ((3 * _cycleIndex) + 2) % 5,
+              orbFill: _orbFill,
               color: Colors.black,
             ),
             child: const SizedBox.expand(),
@@ -91,6 +122,13 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       ),
     );
   }
+
+  bool _crossedThreshold(double previous, double current, double threshold) {
+    if (current >= previous) {
+      return previous < threshold && current >= threshold;
+    }
+    return previous < threshold || current >= threshold;
+  }
 }
 
 class DynamicIslandDripPainter extends CustomPainter {
@@ -98,64 +136,66 @@ class DynamicIslandDripPainter extends CustomPainter {
     required this.t,
     required this.safeTop,
     required this.activeStretchIndex,
+    required this.orbFill,
     required this.color,
   });
 
   final double t;
   final double safeTop;
   final int activeStretchIndex;
+  final double orbFill;
   final Color color;
 
   static const List<_DripSpec> _drips = <_DripSpec>[
     _DripSpec(
-      anchorFactor: -0.255,
+      anchorFactor: -0.315,
       phaseOffset: 0.06,
       speed: 0.94,
-      shoulder: 5.4,
-      neck: 2.0,
-      tipRadius: 3.3,
-      travel: 58,
-      anchorLift: -3.2,
+      shoulder: 6.4,
+      neck: 2.3,
+      tipRadius: 4.4,
+      travel: 82,
+      anchorLift: -4.2,
     ),
     _DripSpec(
-      anchorFactor: -0.128,
+      anchorFactor: -0.158,
       phaseOffset: 0.34,
       speed: 1.07,
-      shoulder: 5.9,
-      neck: 2.2,
-      tipRadius: 3.6,
-      travel: 72,
-      anchorLift: -1.4,
+      shoulder: 7.0,
+      neck: 2.6,
+      tipRadius: 4.9,
+      travel: 94,
+      anchorLift: -2.0,
     ),
     _DripSpec(
       anchorFactor: 0.00,
       phaseOffset: 0.18,
       speed: 0.88,
-      shoulder: 6.8,
-      neck: 2.6,
-      tipRadius: 4.2,
-      travel: 104,
+      shoulder: 8.0,
+      neck: 3.0,
+      tipRadius: 5.9,
+      travel: 146,
       anchorLift: 0.0,
     ),
     _DripSpec(
-      anchorFactor: 0.128,
+      anchorFactor: 0.158,
       phaseOffset: 0.57,
       speed: 1.13,
-      shoulder: 5.9,
-      neck: 2.2,
-      tipRadius: 3.6,
-      travel: 70,
-      anchorLift: -1.4,
+      shoulder: 7.0,
+      neck: 2.6,
+      tipRadius: 4.9,
+      travel: 92,
+      anchorLift: -2.0,
     ),
     _DripSpec(
-      anchorFactor: 0.255,
+      anchorFactor: 0.315,
       phaseOffset: 0.79,
       speed: 0.95,
-      shoulder: 5.4,
-      neck: 2.0,
-      tipRadius: 3.3,
-      travel: 56,
-      anchorLift: -3.2,
+      shoulder: 6.4,
+      neck: 2.3,
+      tipRadius: 4.4,
+      travel: 80,
+      anchorLift: -4.2,
     ),
   ];
 
@@ -175,8 +215,10 @@ class DynamicIslandDripPainter extends CustomPainter {
     final centerX = size.width / 2;
     final hasDynamicIslandInset = safeTop >= 44;
     final sourceWidth = hasDynamicIslandInset
-        ? math.min(112.0, size.width * 0.30)
+        ? math.min(118.0, size.width * 0.32)
         : math.min(126.0, size.width * 0.34);
+    final orbCenter = Offset(centerX, size.height * 0.71);
+    final orbRadius = math.min(size.width * 0.235, 94.0);
 
     final islandTop = hasDynamicIslandInset
         ? math.max(2.0, safeTop - 47.0)
@@ -207,6 +249,14 @@ class DynamicIslandDripPainter extends CustomPainter {
       );
     }
 
+    _drawOrbBack(
+      canvas,
+      center: orbCenter,
+      radius: orbRadius,
+      fillPaint: fillPaint,
+      shadowPaint: shadowPaint,
+    );
+
     _drawAttachmentFilm(
       canvas,
       centerX: centerX,
@@ -222,11 +272,19 @@ class DynamicIslandDripPainter extends CustomPainter {
         centerX: centerX,
         sourceWidth: sourceWidth,
         baseY: sourceBottom + 0.8,
+        orbCenter: orbCenter,
+        orbRadius: orbRadius,
         spec: _drips[i],
         fillPaint: fillPaint,
         shadowPaint: shadowPaint,
       );
     }
+
+    _drawOrbFront(
+      canvas,
+      center: orbCenter,
+      radius: orbRadius,
+    );
   }
 
   void _drawFallbackIsland(
@@ -297,46 +355,49 @@ class DynamicIslandDripPainter extends CustomPainter {
     required double baseY,
     required Paint fillPaint,
   }) {
-    final first = _drips.first;
-    final last = _drips.last;
-    final left = centerX + sourceWidth * first.anchorFactor - first.shoulder - 2.5;
-    final right =
-        centerX + sourceWidth * last.anchorFactor + last.shoulder + 2.5;
-    const baseline = -1.8;
-    final path = Path()..moveTo(left, baseY + baseline);
-
     for (final drip in _drips) {
       final anchorX = centerX + sourceWidth * drip.anchorFactor;
-      final shoulder = drip.shoulder * 0.84;
+      final shoulder = drip.shoulder * 0.88;
       final anchorY = baseY + drip.anchorLift;
-
-      path
-        ..lineTo(anchorX - shoulder, baseY + baseline)
+      final capPath = Path()
+        ..moveTo(anchorX - shoulder, baseY - 0.8)
         ..cubicTo(
-          anchorX - shoulder * 0.56,
-          baseY + baseline,
-          anchorX - drip.neck * 0.9,
-          anchorY - 0.4,
+          anchorX - shoulder * 0.58,
+          baseY - 0.8,
+          anchorX - drip.neck,
+          anchorY + 0.9,
           anchorX,
-          anchorY,
+          anchorY + 1.2,
         )
         ..cubicTo(
-          anchorX + drip.neck * 0.9,
-          anchorY - 0.4,
-          anchorX + shoulder * 0.56,
-          baseY + baseline,
+          anchorX + drip.neck,
+          anchorY + 0.9,
+          anchorX + shoulder * 0.58,
+          baseY - 0.8,
           anchorX + shoulder,
-          baseY + baseline,
-        );
+          baseY - 0.8,
+        )
+        ..lineTo(anchorX + shoulder * 0.88, baseY + 0.35)
+        ..cubicTo(
+          anchorX + drip.neck * 0.7,
+          anchorY + 1.6,
+          anchorX + drip.neck * 0.36,
+          anchorY + 1.8,
+          anchorX,
+          anchorY + 1.95,
+        )
+        ..cubicTo(
+          anchorX - drip.neck * 0.36,
+          anchorY + 1.8,
+          anchorX - drip.neck * 0.7,
+          anchorY + 1.6,
+          anchorX - shoulder * 0.88,
+          baseY + 0.35,
+        )
+        ..close();
+
+      canvas.drawPath(capPath, fillPaint);
     }
-
-    path
-      ..lineTo(right, baseY + baseline)
-      ..lineTo(right, baseY)
-      ..lineTo(left, baseY)
-      ..close();
-
-    canvas.drawPath(path, fillPaint);
   }
 
   void _drawDrip(
@@ -345,6 +406,8 @@ class DynamicIslandDripPainter extends CustomPainter {
     required double centerX,
     required double sourceWidth,
     required double baseY,
+    required Offset orbCenter,
+    required double orbRadius,
     required _DripSpec spec,
     required Paint fillPaint,
     required Paint shadowPaint,
@@ -359,6 +422,8 @@ class DynamicIslandDripPainter extends CustomPainter {
         phase: phase,
         anchorX: anchorX,
         anchorY: anchorY,
+        orbCenter: orbCenter,
+        orbRadius: orbRadius,
         spec: spec,
         fillPaint: fillPaint,
         shadowPaint: shadowPaint,
@@ -371,6 +436,8 @@ class DynamicIslandDripPainter extends CustomPainter {
       phase: phase,
       anchorX: anchorX,
       anchorY: anchorY,
+      orbCenter: orbCenter,
+      orbRadius: orbRadius,
       spec: spec,
       fillPaint: fillPaint,
       shadowPaint: shadowPaint,
@@ -382,65 +449,99 @@ class DynamicIslandDripPainter extends CustomPainter {
     required double phase,
     required double anchorX,
     required double anchorY,
+    required Offset orbCenter,
+    required double orbRadius,
     required _DripSpec spec,
     required Paint fillPaint,
     required Paint shadowPaint,
   }) {
-    final gather = _normalize(phase, 0.00, 0.20);
-    final stretch = _normalize(phase, 0.20, 0.72);
-    final tail = _normalize(phase, 0.72, 0.84);
-    final rebound = _normalize(phase, 0.84, 0.93);
-    final settle = _normalize(phase, 0.93, 1.0);
+    final gather = _normalize(phase, 0.00, 0.16);
+    final stretch = _normalize(phase, 0.16, 0.68);
+    final rebound = _normalize(phase, 0.68, 0.80);
+    final bulb = _normalize(phase, 0.80, 0.90);
+    final release = _normalize(phase, 0.90, 1.0);
 
     final shoulder = _lerp(
-      spec.shoulder * 0.80,
+      spec.shoulder * 0.82,
       spec.shoulder,
       _easeOutCubic(gather),
     );
     final neck = _lerp(
-      spec.shoulder * 0.52,
+      spec.shoulder * 0.50,
       spec.neck,
       _easeInOutCubic(stretch),
     );
 
-    final stretchLength = 7 + _easeInOutCubic(stretch) * (spec.travel * 0.62);
-    final tailLength = stretchLength + _easeOutCubic(tail) * (spec.travel * 0.20);
-    final reboundLength = tailLength - _easeInOutCubic(rebound) * 6.0;
-    final finalLength = _lerp(reboundLength, 2.2, settle);
-
-    final length = phase < 0.20
-        ? 1.2 + _easeOutCubic(gather) * 6.4
-        : phase < 0.84
-            ? tailLength
-            : phase < 0.93
-                ? reboundLength
-                : finalLength;
-
-    final tipRadius = _lerp(
-      spec.tipRadius * 0.70,
-      spec.tipRadius,
-      _easeOutCubic(_normalize(phase, 0.28, 0.88)),
+    final stretchedLength =
+        8 + _easeInOutCubic(stretch) * (spec.travel * 0.64);
+    final reboundedLength =
+        stretchedLength - _easeInOutCubic(rebound) * (spec.travel * 0.08);
+    final attachedLength =
+        reboundedLength + _easeOutCubic(bulb) * (spec.travel * 0.10);
+    final attachedTipRadius = _lerp(
+      spec.tipRadius * 0.72,
+      spec.tipRadius * 1.16,
+      _easeOutCubic(_normalize(phase, 0.22, 0.90)),
     );
 
-    final path = length < 8
-        ? _buildBulgePath(
-            anchorX: anchorX,
-            baseY: anchorY,
-            shoulder: shoulder,
-            neck: neck,
-            bulge: length,
-          )
-        : _buildDripPath(
-            anchorX: anchorX,
-            baseY: anchorY,
-            shoulder: shoulder,
-            neck: neck,
-            length: length,
-            tipRadius: tipRadius,
-          );
+    if (phase < 0.90) {
+      final length = phase < 0.16
+          ? 1.4 + _easeOutCubic(gather) * 7.0
+          : phase < 0.68
+              ? stretchedLength
+              : phase < 0.80
+                  ? reboundedLength
+                  : attachedLength;
 
-    canvas.drawPath(path.shift(const Offset(0, 1.3)), shadowPaint);
-    canvas.drawPath(path, fillPaint);
+      final path = length < 8
+          ? _buildBulgePath(
+              anchorX: anchorX,
+              baseY: anchorY,
+              shoulder: shoulder,
+              neck: neck,
+              bulge: length,
+            )
+          : _buildDripPath(
+              anchorX: anchorX,
+              baseY: anchorY,
+              shoulder: shoulder,
+              neck: neck,
+              length: length,
+              tipRadius: attachedTipRadius,
+            );
+
+      canvas.drawPath(path.shift(const Offset(0, 1.3)), shadowPaint);
+      canvas.drawPath(path, fillPaint);
+      return;
+    }
+
+    final residualPath = _buildBulgePath(
+      anchorX: anchorX,
+      baseY: anchorY,
+      shoulder: spec.shoulder * 0.72,
+      neck: spec.neck * 0.76,
+      bulge: _lerp(5.2, 1.6, _easeInOutCubic(release)),
+    );
+    canvas.drawPath(residualPath.shift(const Offset(0, 1.1)), shadowPaint);
+    canvas.drawPath(residualPath, fillPaint);
+
+    final dropRadius = _lerp(
+      spec.tipRadius * 1.12,
+      spec.tipRadius * 1.28,
+      _easeOutCubic(release),
+    );
+    final dropY =
+        anchorY + attachedLength + 10 + _easeInCubic(release) * (spec.travel * 1.06);
+    _drawOrbAwareDrop(
+      canvas,
+      x: anchorX,
+      y: dropY,
+      radius: dropRadius,
+      orbCenter: orbCenter,
+      orbRadius: orbRadius,
+      fillPaint: fillPaint,
+      shadowPaint: shadowPaint,
+    );
   }
 
   void _drawDirectDrop(
@@ -448,62 +549,298 @@ class DynamicIslandDripPainter extends CustomPainter {
     required double phase,
     required double anchorX,
     required double anchorY,
+    required Offset orbCenter,
+    required double orbRadius,
     required _DripSpec spec,
     required Paint fillPaint,
     required Paint shadowPaint,
   }) {
-    final gather = _normalize(phase, 0.00, 0.18);
-    final release = _normalize(phase, 0.18, 0.30);
-    final fall = _normalize(phase, 0.24, 0.72);
-    final fade = _normalize(phase, 0.74, 1.0);
+    final gather = _normalize(phase, 0.00, 0.14);
+    final tether = _normalize(phase, 0.14, 0.28);
+    final fall = _normalize(phase, 0.28, 0.60);
+    final fade = _normalize(phase, 0.60, 1.0);
 
-    final beadShoulder = _lerp(
-      spec.shoulder * 0.52,
-      spec.shoulder * 0.72,
-      _easeOutCubic(gather),
-    );
-    final beadNeck = _lerp(
-      spec.neck * 0.70,
-      spec.neck * 0.92,
-      _easeOutCubic(gather),
-    );
+    if (phase < 0.14) {
+      final beadPath = _buildBulgePath(
+        anchorX: anchorX,
+        baseY: anchorY,
+        shoulder: _lerp(spec.shoulder * 0.54, spec.shoulder * 0.74, gather),
+        neck: _lerp(spec.neck * 0.72, spec.neck * 0.98, gather),
+        bulge: 1.3 + _easeOutCubic(gather) * 6.3,
+      );
+      canvas.drawPath(beadPath.shift(const Offset(0, 1.0)), shadowPaint);
+      canvas.drawPath(beadPath, fillPaint);
+      return;
+    }
 
-    final bulge = phase < 0.18
-        ? 1.1 + _easeOutCubic(gather) * 5.8
-        : phase < 0.30
-            ? _lerp(6.9, 2.4, _easeInOutCubic(release))
-            : _lerp(2.4, 1.2, _easeInOutCubic(_normalize(phase, 0.30, 1.0)));
+    if (phase < 0.28) {
+      final path = _buildDripPath(
+        anchorX: anchorX,
+        baseY: anchorY,
+        shoulder: _lerp(spec.shoulder * 0.72, spec.shoulder * 0.88, tether),
+        neck: _lerp(spec.neck * 0.98, spec.neck * 0.78, tether),
+        length: 7 + _easeOutCubic(tether) * 22,
+        tipRadius: _lerp(spec.tipRadius * 0.74, spec.tipRadius * 0.98, tether),
+      );
+      canvas.drawPath(path.shift(const Offset(0, 1.1)), shadowPaint);
+      canvas.drawPath(path, fillPaint);
+      return;
+    }
 
     final beadPath = _buildBulgePath(
       anchorX: anchorX,
       baseY: anchorY,
-      shoulder: beadShoulder,
-      neck: beadNeck,
-      bulge: bulge,
+      shoulder: spec.shoulder * 0.50,
+      neck: spec.neck * 0.72,
+      bulge: _lerp(2.8, 1.4, _easeInOutCubic(fade)),
     );
-    canvas.drawPath(beadPath.shift(const Offset(0, 1.0)), shadowPaint);
+    canvas.drawPath(beadPath.shift(const Offset(0, 0.9)), shadowPaint);
     canvas.drawPath(beadPath, fillPaint);
 
-    final dropGrow = _easeOutCubic(_normalize(phase, 0.22, 0.40));
-    final dropShrink = 1 - _easeInCubic(fade);
-    final dropRadius = spec.tipRadius * dropGrow * math.max(0.0, dropShrink);
-    if (dropRadius <= 0.05) {
+    final dropRadius =
+        spec.tipRadius * 1.12 * math.max(0.0, 1 - _easeInCubic(fade));
+    if (dropRadius <= 0.08) {
       return;
     }
 
-    final dropY = anchorY + 7 + _easeInCubic(fall) * spec.travel;
-    final dropX = anchorX;
+    final dropY = anchorY + 16 + _easeInCubic(fall) * (spec.travel * 1.18);
+    _drawOrbAwareDrop(
+      canvas,
+      x: anchorX,
+      y: dropY,
+      radius: dropRadius,
+      orbCenter: orbCenter,
+      orbRadius: orbRadius,
+      fillPaint: fillPaint,
+      shadowPaint: shadowPaint,
+    );
+  }
+
+  void _drawOrbBack(
+    Canvas canvas, {
+    required Offset center,
+    required double radius,
+    required Paint fillPaint,
+    required Paint shadowPaint,
+  }) {
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(center.dx, center.dy + radius + 12),
+        width: radius * 1.5,
+        height: radius * 0.34,
+      ),
+      Paint()
+        ..color = const Color(0x20000000)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+    );
+
+    final orbRect = Rect.fromCircle(center: center, radius: radius);
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..shader = const RadialGradient(
+          colors: <Color>[
+            Color(0x33FFFFFF),
+            Color(0x14FFFFFF),
+            Color(0x08FFFFFF),
+          ],
+          stops: <double>[0.0, 0.62, 1.0],
+        ).createShader(orbRect)
+        ..style = PaintingStyle.fill
+        ..isAntiAlias = true,
+    );
+
+    _drawOrbLiquid(
+      canvas,
+      center: center,
+      radius: radius,
+      fillPaint: fillPaint,
+    );
+  }
+
+  void _drawOrbLiquid(
+    Canvas canvas, {
+    required Offset center,
+    required double radius,
+    required Paint fillPaint,
+  }) {
+    final orbRect = Rect.fromCircle(center: center, radius: radius);
+    final liquidTop = center.dy + radius * (1 - 2 * orbFill);
+    final left = center.dx - radius;
+    final right = center.dx + radius;
+    final waveA = 4.5 + math.sin(t * math.pi * 2).abs() * 2.6;
+    final waveB = 1.8 + math.cos(t * math.pi * 2.6).abs() * 1.4;
+
+    final liquidPath = Path()
+      ..moveTo(left, center.dy + radius)
+      ..lineTo(left, liquidTop);
+
+    for (var x = left; x <= right; x += 4) {
+      final progress = (x - left) / (right - left);
+      final edgeFalloff = math.sin(progress * math.pi);
+      final wave =
+          math.sin((progress * 2.3 + t * 1.2) * math.pi * 2) * waveA * edgeFalloff +
+              math.sin((progress * 4.8 - t * 1.8) * math.pi * 2) *
+                  waveB *
+                  edgeFalloff;
+      liquidPath.lineTo(x, liquidTop + wave);
+    }
+
+    liquidPath
+      ..lineTo(right, center.dy + radius)
+      ..close();
+
+    canvas.save();
+    canvas.clipPath(Path()..addOval(orbRect));
+    canvas.drawPath(
+      liquidPath,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            fillPaint.color.withAlpha(216),
+            fillPaint.color.withAlpha(238),
+            fillPaint.color,
+          ],
+        ).createShader(orbRect)
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawPath(
+      liquidPath,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.3
+        ..color = const Color(0x55FFFFFF),
+    );
+    canvas.restore();
+  }
+
+  void _drawOrbFront(
+    Canvas canvas, {
+    required Offset center,
+    required double radius,
+  }) {
+    final orbRect = Rect.fromCircle(center: center, radius: radius);
 
     canvas.drawCircle(
-      Offset(dropX, dropY + 1),
-      dropRadius,
-      shadowPaint,
+      center,
+      radius,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..color = const Color(0x7AFFFFFF),
     );
-    canvas.drawCircle(
-      Offset(dropX, dropY),
-      dropRadius,
-      fillPaint,
+
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(center.dx - radius * 0.26, center.dy - radius * 0.34),
+        width: radius * 0.44,
+        height: radius * 0.78,
+      ),
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            const Color(0x7FFFFFFF),
+            const Color(0x18FFFFFF),
+          ],
+        ).createShader(orbRect)
+        ..style = PaintingStyle.fill,
     );
+
+    canvas.drawArc(
+      Rect.fromCenter(
+        center: Offset(center.dx + radius * 0.04, center.dy + radius * 0.04),
+        width: radius * 1.58,
+        height: radius * 1.62,
+      ),
+      math.pi * 0.15,
+      math.pi * 0.46,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0
+        ..color = const Color(0x3FFFFFFF),
+    );
+  }
+
+  void _drawOrbAwareDrop(
+    Canvas canvas, {
+    required double x,
+    required double y,
+    required double radius,
+    required Offset orbCenter,
+    required double orbRadius,
+    required Paint fillPaint,
+    required Paint shadowPaint,
+  }) {
+    final mergeTop = _orbTopAtX(orbCenter, orbRadius, x);
+    if (mergeTop == null || y < mergeTop - radius * 1.15) {
+      _drawDropCircle(
+        canvas,
+        x: x,
+        y: y,
+        radius: radius,
+        fillPaint: fillPaint,
+        shadowPaint: shadowPaint,
+      );
+      return;
+    }
+
+    if (y < mergeTop + radius * 0.32) {
+      final contactY = mergeTop + radius * 0.06;
+      final mergePath = Path()
+        ..moveTo(x - radius * 0.76, y - radius * 0.12)
+        ..cubicTo(
+          x - radius * 0.94,
+          y + radius * 0.56,
+          x - radius * 0.66,
+          contactY + radius * 0.18,
+          x,
+          contactY,
+        )
+        ..cubicTo(
+          x + radius * 0.66,
+          contactY + radius * 0.18,
+          x + radius * 0.94,
+          y + radius * 0.56,
+          x + radius * 0.76,
+          y - radius * 0.12,
+        )
+        ..arcToPoint(
+          Offset(x - radius * 0.76, y - radius * 0.12),
+          radius: Radius.circular(radius),
+          clockwise: false,
+        )
+        ..close();
+
+      canvas.drawPath(mergePath.shift(const Offset(0, 1)), shadowPaint);
+      canvas.drawPath(mergePath, fillPaint);
+      return;
+    }
+  }
+
+  void _drawDropCircle(
+    Canvas canvas, {
+    required double x,
+    required double y,
+    required double radius,
+    required Paint fillPaint,
+    required Paint shadowPaint,
+  }) {
+    canvas.drawCircle(Offset(x, y + 1), radius, shadowPaint);
+    canvas.drawCircle(Offset(x, y), radius, fillPaint);
+  }
+
+  double? _orbTopAtX(Offset center, double radius, double x) {
+    final dx = x - center.dx;
+    if (dx.abs() > radius) {
+      return null;
+    }
+    return center.dy - math.sqrt(radius * radius - dx * dx);
   }
 
   Path _buildBulgePath({
@@ -598,6 +935,10 @@ class DynamicIslandDripPainter extends CustomPainter {
     return (value - start) / (end - start);
   }
 
+  static double _phaseFor(double t, _DripSpec spec) {
+    return (t * spec.speed + spec.phaseOffset) % 1.0;
+  }
+
   static double _lerp(double a, double b, double t) => a + (b - a) * t;
 
   static double _easeOutCubic(double x) => 1 - math.pow(1 - x, 3).toDouble();
@@ -616,6 +957,7 @@ class DynamicIslandDripPainter extends CustomPainter {
     return oldDelegate.t != t ||
         oldDelegate.safeTop != safeTop ||
         oldDelegate.activeStretchIndex != activeStretchIndex ||
+        oldDelegate.orbFill != orbFill ||
         oldDelegate.color != color;
   }
 }
