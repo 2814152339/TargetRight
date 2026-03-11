@@ -40,6 +40,8 @@ class DynamicIslandDripPage extends StatefulWidget {
 class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  int _cycleIndex = 0;
+  double _lastValue = 0;
 
   @override
   void initState() {
@@ -47,7 +49,17 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 5600),
-    )..repeat();
+    )
+      ..addListener(() {
+        final value = _controller.value;
+        if (value < _lastValue) {
+          setState(() {
+            _cycleIndex++;
+          });
+        }
+        _lastValue = value;
+      })
+      ..repeat();
   }
 
   @override
@@ -70,6 +82,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
             painter: DynamicIslandDripPainter(
               t: _controller.value,
               safeTop: safeTop,
+              activeStretchIndex: ((3 * _cycleIndex) + 2) % 5,
               color: Colors.black,
             ),
             child: const SizedBox.expand(),
@@ -84,37 +97,35 @@ class DynamicIslandDripPainter extends CustomPainter {
   DynamicIslandDripPainter({
     required this.t,
     required this.safeTop,
+    required this.activeStretchIndex,
     required this.color,
   });
 
   final double t;
   final double safeTop;
+  final int activeStretchIndex;
   final Color color;
 
   static const List<_DripSpec> _drips = <_DripSpec>[
     _DripSpec(
-      anchorFactor: -0.19,
+      anchorFactor: -0.255,
       phaseOffset: 0.06,
       speed: 0.94,
-      shoulder: 5.6,
-      neck: 2.1,
-      primaryLength: 32,
-      tailLength: 30,
+      shoulder: 5.4,
+      neck: 2.0,
       tipRadius: 3.3,
-      rebound: 5.5,
-      detachedDrop: false,
+      travel: 58,
+      anchorLift: -3.2,
     ),
     _DripSpec(
-      anchorFactor: -0.095,
+      anchorFactor: -0.128,
       phaseOffset: 0.34,
       speed: 1.07,
-      shoulder: 6.2,
-      neck: 2.3,
-      primaryLength: 48,
-      tailLength: 38,
-      tipRadius: 3.8,
-      rebound: 6.0,
-      detachedDrop: false,
+      shoulder: 5.9,
+      neck: 2.2,
+      tipRadius: 3.6,
+      travel: 72,
+      anchorLift: -1.4,
     ),
     _DripSpec(
       anchorFactor: 0.00,
@@ -122,35 +133,29 @@ class DynamicIslandDripPainter extends CustomPainter {
       speed: 0.88,
       shoulder: 6.8,
       neck: 2.6,
-      primaryLength: 62,
-      tailLength: 56,
       tipRadius: 4.2,
-      rebound: 7.0,
-      detachedDrop: true,
+      travel: 104,
+      anchorLift: 0.0,
     ),
     _DripSpec(
-      anchorFactor: 0.095,
+      anchorFactor: 0.128,
       phaseOffset: 0.57,
       speed: 1.13,
-      shoulder: 6.2,
-      neck: 2.3,
-      primaryLength: 44,
-      tailLength: 36,
-      tipRadius: 3.8,
-      rebound: 5.8,
-      detachedDrop: false,
+      shoulder: 5.9,
+      neck: 2.2,
+      tipRadius: 3.6,
+      travel: 70,
+      anchorLift: -1.4,
     ),
     _DripSpec(
-      anchorFactor: 0.19,
+      anchorFactor: 0.255,
       phaseOffset: 0.79,
       speed: 0.95,
-      shoulder: 5.6,
-      neck: 2.1,
-      primaryLength: 30,
-      tailLength: 28,
+      shoulder: 5.4,
+      neck: 2.0,
       tipRadius: 3.3,
-      rebound: 5.2,
-      detachedDrop: false,
+      travel: 56,
+      anchorLift: -3.2,
     ),
   ];
 
@@ -210,13 +215,14 @@ class DynamicIslandDripPainter extends CustomPainter {
       fillPaint: fillPaint,
     );
 
-    for (final drip in _drips) {
+    for (var i = 0; i < _drips.length; i++) {
       _drawDrip(
         canvas,
+        index: i,
         centerX: centerX,
         sourceWidth: sourceWidth,
         baseY: sourceBottom + 0.8,
-        spec: drip,
+        spec: _drips[i],
         fillPaint: fillPaint,
         shadowPaint: shadowPaint,
       );
@@ -291,36 +297,41 @@ class DynamicIslandDripPainter extends CustomPainter {
     required double baseY,
     required Paint fillPaint,
   }) {
-    final left = centerX - sourceWidth * 0.235;
-    final right = centerX + sourceWidth * 0.235;
-    final path = Path()..moveTo(left, baseY - 1.8);
+    final first = _drips.first;
+    final last = _drips.last;
+    final left = centerX + sourceWidth * first.anchorFactor - first.shoulder - 2.5;
+    final right =
+        centerX + sourceWidth * last.anchorFactor + last.shoulder + 2.5;
+    const baseline = -1.8;
+    final path = Path()..moveTo(left, baseY + baseline);
 
     for (final drip in _drips) {
       final anchorX = centerX + sourceWidth * drip.anchorFactor;
-      final shoulder = drip.shoulder * 0.82;
+      final shoulder = drip.shoulder * 0.84;
+      final anchorY = baseY + drip.anchorLift;
 
       path
-        ..lineTo(anchorX - shoulder, baseY - 1.8)
+        ..lineTo(anchorX - shoulder, baseY + baseline)
         ..cubicTo(
           anchorX - shoulder * 0.56,
-          baseY - 1.8,
+          baseY + baseline,
           anchorX - drip.neck * 0.9,
-          baseY + 1.1,
+          anchorY - 0.4,
           anchorX,
-          baseY + 1.35,
+          anchorY,
         )
         ..cubicTo(
           anchorX + drip.neck * 0.9,
-          baseY + 1.1,
+          anchorY - 0.4,
           anchorX + shoulder * 0.56,
-          baseY - 1.8,
+          baseY + baseline,
           anchorX + shoulder,
-          baseY - 1.8,
+          baseY + baseline,
         );
     }
 
     path
-      ..lineTo(right, baseY - 1.8)
+      ..lineTo(right, baseY + baseline)
       ..lineTo(right, baseY)
       ..lineTo(left, baseY)
       ..close();
@@ -330,6 +341,7 @@ class DynamicIslandDripPainter extends CustomPainter {
 
   void _drawDrip(
     Canvas canvas, {
+    required int index,
     required double centerX,
     required double sourceWidth,
     required double baseY,
@@ -338,46 +350,89 @@ class DynamicIslandDripPainter extends CustomPainter {
     required Paint shadowPaint,
   }) {
     final phase = (t * spec.speed + spec.phaseOffset) % 1.0;
-    if (phase < 0.05) {
+    final anchorX = centerX + sourceWidth * spec.anchorFactor;
+    final anchorY = baseY + spec.anchorLift;
+
+    if (index == activeStretchIndex) {
+      _drawStretchDrip(
+        canvas,
+        phase: phase,
+        anchorX: anchorX,
+        anchorY: anchorY,
+        spec: spec,
+        fillPaint: fillPaint,
+        shadowPaint: shadowPaint,
+      );
       return;
     }
 
-    final anchorX = centerX + sourceWidth * spec.anchorFactor;
-    final shoulderGrow = _easeOutCubic(_normalize(phase, 0.06, 0.28));
-    final stretchPhase = _normalize(phase, 0.16, 0.74);
-    final tailPhase = _normalize(phase, 0.74, 1.0);
-    final reboundPhase = _normalize(phase, 0.82, 1.0);
+    _drawDirectDrop(
+      canvas,
+      phase: phase,
+      anchorX: anchorX,
+      anchorY: anchorY,
+      spec: spec,
+      fillPaint: fillPaint,
+      shadowPaint: shadowPaint,
+    );
+  }
 
-    final shoulder = _lerp(spec.shoulder * 0.78, spec.shoulder, shoulderGrow);
-    final neck = _lerp(spec.shoulder * 0.48, spec.neck, stretchPhase);
+  void _drawStretchDrip(
+    Canvas canvas, {
+    required double phase,
+    required double anchorX,
+    required double anchorY,
+    required _DripSpec spec,
+    required Paint fillPaint,
+    required Paint shadowPaint,
+  }) {
+    final gather = _normalize(phase, 0.00, 0.20);
+    final stretch = _normalize(phase, 0.20, 0.72);
+    final tail = _normalize(phase, 0.72, 0.84);
+    final rebound = _normalize(phase, 0.84, 0.93);
+    final settle = _normalize(phase, 0.93, 1.0);
 
-    var length = phase < 0.16
-        ? _easeOutCubic(_normalize(phase, 0.05, 0.16)) * 7
-        : 6 +
-            _easeInOutCubic(stretchPhase) * spec.primaryLength +
-            _easeInCubic(tailPhase) * spec.tailLength;
-    length -= _easeInOutCubic(reboundPhase) * spec.rebound;
-    length = math.max(1.4, length).toDouble();
-
-    final tipRadius = _lerp(
-      spec.tipRadius * 0.72,
-      spec.tipRadius,
-      _easeOutCubic(_normalize(phase, 0.38, 1.0)),
+    final shoulder = _lerp(
+      spec.shoulder * 0.80,
+      spec.shoulder,
+      _easeOutCubic(gather),
+    );
+    final neck = _lerp(
+      spec.shoulder * 0.52,
+      spec.neck,
+      _easeInOutCubic(stretch),
     );
 
-    final tipCenterY = baseY + length;
+    final stretchLength = 7 + _easeInOutCubic(stretch) * (spec.travel * 0.62);
+    final tailLength = stretchLength + _easeOutCubic(tail) * (spec.travel * 0.20);
+    final reboundLength = tailLength - _easeInOutCubic(rebound) * 6.0;
+    final finalLength = _lerp(reboundLength, 2.2, settle);
+
+    final length = phase < 0.20
+        ? 1.2 + _easeOutCubic(gather) * 6.4
+        : phase < 0.84
+            ? tailLength
+            : phase < 0.93
+                ? reboundLength
+                : finalLength;
+
+    final tipRadius = _lerp(
+      spec.tipRadius * 0.70,
+      spec.tipRadius,
+      _easeOutCubic(_normalize(phase, 0.28, 0.88)),
+    );
 
     final path = length < 8
         ? _buildBulgePath(
             anchorX: anchorX,
-            baseY: baseY,
+            baseY: anchorY,
             shoulder: shoulder,
             neck: neck,
-            bulge: math.max(1.5, length),
+            bulge: length,
           )
         : _buildDripPath(
             anchorX: anchorX,
-            baseY: baseY,
+            baseY: anchorY,
             shoulder: shoulder,
             neck: neck,
             length: length,
@@ -386,25 +441,69 @@ class DynamicIslandDripPainter extends CustomPainter {
 
     canvas.drawPath(path.shift(const Offset(0, 1.3)), shadowPaint);
     canvas.drawPath(path, fillPaint);
+  }
 
-    if (spec.detachedDrop && phase > 0.76) {
-      final detachedPhase = _normalize(phase, 0.76, 1.0);
-      final detachedRadius =
-          _lerp(spec.tipRadius * 0.36, spec.tipRadius * 0.62, detachedPhase);
-      final detachedX = anchorX;
-      final detachedY = tipCenterY + 8 + detachedPhase * detachedPhase * 64;
+  void _drawDirectDrop(
+    Canvas canvas, {
+    required double phase,
+    required double anchorX,
+    required double anchorY,
+    required _DripSpec spec,
+    required Paint fillPaint,
+    required Paint shadowPaint,
+  }) {
+    final gather = _normalize(phase, 0.00, 0.18);
+    final release = _normalize(phase, 0.18, 0.30);
+    final fall = _normalize(phase, 0.24, 0.72);
+    final fade = _normalize(phase, 0.74, 1.0);
 
-      canvas.drawCircle(
-        Offset(detachedX, detachedY + 1),
-        detachedRadius,
-        shadowPaint,
-      );
-      canvas.drawCircle(
-        Offset(detachedX, detachedY),
-        detachedRadius,
-        fillPaint,
-      );
+    final beadShoulder = _lerp(
+      spec.shoulder * 0.52,
+      spec.shoulder * 0.72,
+      _easeOutCubic(gather),
+    );
+    final beadNeck = _lerp(
+      spec.neck * 0.70,
+      spec.neck * 0.92,
+      _easeOutCubic(gather),
+    );
+
+    final bulge = phase < 0.18
+        ? 1.1 + _easeOutCubic(gather) * 5.8
+        : phase < 0.30
+            ? _lerp(6.9, 2.4, _easeInOutCubic(release))
+            : _lerp(2.4, 1.2, _easeInOutCubic(_normalize(phase, 0.30, 1.0)));
+
+    final beadPath = _buildBulgePath(
+      anchorX: anchorX,
+      baseY: anchorY,
+      shoulder: beadShoulder,
+      neck: beadNeck,
+      bulge: bulge,
+    );
+    canvas.drawPath(beadPath.shift(const Offset(0, 1.0)), shadowPaint);
+    canvas.drawPath(beadPath, fillPaint);
+
+    final dropGrow = _easeOutCubic(_normalize(phase, 0.22, 0.40));
+    final dropShrink = 1 - _easeInCubic(fade);
+    final dropRadius = spec.tipRadius * dropGrow * math.max(0.0, dropShrink);
+    if (dropRadius <= 0.05) {
+      return;
     }
+
+    final dropY = anchorY + 7 + _easeInCubic(fall) * spec.travel;
+    final dropX = anchorX;
+
+    canvas.drawCircle(
+      Offset(dropX, dropY + 1),
+      dropRadius,
+      shadowPaint,
+    );
+    canvas.drawCircle(
+      Offset(dropX, dropY),
+      dropRadius,
+      fillPaint,
+    );
   }
 
   Path _buildBulgePath({
@@ -516,6 +615,7 @@ class DynamicIslandDripPainter extends CustomPainter {
   bool shouldRepaint(covariant DynamicIslandDripPainter oldDelegate) {
     return oldDelegate.t != t ||
         oldDelegate.safeTop != safeTop ||
+        oldDelegate.activeStretchIndex != activeStretchIndex ||
         oldDelegate.color != color;
   }
 }
@@ -527,11 +627,9 @@ class _DripSpec {
     required this.speed,
     required this.shoulder,
     required this.neck,
-    required this.primaryLength,
-    required this.tailLength,
     required this.tipRadius,
-    required this.rebound,
-    required this.detachedDrop,
+    required this.travel,
+    required this.anchorLift,
   });
 
   final double anchorFactor;
@@ -539,9 +637,7 @@ class _DripSpec {
   final double speed;
   final double shoulder;
   final double neck;
-  final double primaryLength;
-  final double tailLength;
   final double tipRadius;
-  final double rebound;
-  final bool detachedDrop;
+  final double travel;
+  final double anchorLift;
 }
