@@ -499,9 +499,8 @@ class DynamicIslandDripPainter extends CustomPainter {
     required Paint shadowPaint,
   }) {
     final gather = _normalize(phase, 0.00, 0.18);
-    final stretch = _normalize(phase, 0.18, 0.60);
-    final pinch = _normalize(phase, 0.60, 0.78);
-    final release = _normalize(phase, 0.78, 1.0);
+    final stretch = _normalize(phase, 0.18, 0.72);
+    final split = _normalize(phase, 0.72, 1.0);
     final impactY =
         (_orbTopAtX(orbCenter, orbRadius, anchorX) ?? (orbCenter.dy - orbRadius)) +
             spec.tipRadius * 0.16;
@@ -517,21 +516,17 @@ class DynamicIslandDripPainter extends CustomPainter {
       _easeInOutCubic(stretch),
     );
 
-    final stretchedLength = 8 + _easeInOutCubic(stretch) * (spec.travel * 0.66);
-    final pinchedLength =
-        stretchedLength + _easeOutCubic(pinch) * (spec.travel * 0.08);
+    final attachedLength = 8 + _easeInOutCubic(stretch) * (spec.travel * 0.72);
     final attachedTipRadius = _lerp(
       spec.tipRadius * 0.72,
       spec.tipRadius * 1.16,
-      _easeOutCubic(_normalize(phase, 0.20, 0.78)),
+      _easeOutCubic(_normalize(phase, 0.22, 0.72)),
     );
 
-    if (phase < 0.78) {
+    if (phase < 0.72) {
       final length = phase < 0.18
           ? 1.4 + _easeOutCubic(gather) * 7.0
-          : phase < 0.60
-              ? stretchedLength
-              : pinchedLength;
+          : attachedLength;
 
       final path = length < 8
           ? _buildBulgePath(
@@ -563,40 +558,42 @@ class DynamicIslandDripPainter extends CustomPainter {
       return;
     }
 
-    final tailLength = _lerp(pinchedLength * 0.74, 6.0, _easeInOutCubic(release));
-    final tailShoulder = _lerp(spec.shoulder * 0.92, spec.shoulder * 0.32, release);
-    final tailNeck = _lerp(spec.neck * 0.72, spec.neck * 0.20, release);
-    final tailTipRadius = _lerp(spec.tipRadius * 0.54, spec.tipRadius * 0.16, release);
-    final tailPath = _buildDripPath(
+    final upperLength = _lerp(
+      attachedLength * 0.86,
+      4.8,
+      _easeInOutCubic(split),
+    );
+    final upperPath = _buildDripPath(
       anchorX: anchorX,
       baseY: anchorY,
-      shoulder: tailShoulder,
-      neck: tailNeck,
-      length: tailLength,
-      tipRadius: tailTipRadius,
+      shoulder: _lerp(fullShoulder * 0.98, spec.shoulder * 0.24, split),
+      neck: _lerp(fullNeck * 0.86, spec.neck * 0.12, split),
+      length: upperLength,
+      tipRadius: _lerp(attachedTipRadius * 0.44, spec.tipRadius * 0.06, split),
     );
-    canvas.drawPath(tailPath.shift(const Offset(0, 1.1)), shadowPaint);
+    canvas.drawPath(upperPath.shift(const Offset(0, 1.1)), shadowPaint);
     canvas.drawPath(
-      tailPath,
+      upperPath,
       _gradientLiquidPaint(
-        tailPath.getBounds(),
-        bottomY: anchorY + tailLength,
+        upperPath.getBounds(),
+        bottomY: anchorY + upperLength,
         orbCenter: orbCenter,
         orbRadius: orbRadius,
       ),
     );
 
-    final dropForm = _easeOutCubic(_normalize(release, 0.0, 0.26));
+    final splitEase = _easeOutCubic(split);
+    final dropForm = _easeOutCubic(_normalize(split, 0.0, 0.32));
     final dropRadius = _lerp(
       spec.tipRadius * 0.18,
       spec.tipRadius * 1.28,
       dropForm,
     );
-    final separationY = anchorY + tailLength;
+    final separationY = anchorY + upperLength;
     final dropY = _lerp(
-      separationY + dropRadius * 0.46,
+      separationY + dropRadius * 0.34,
       impactY,
-      _easeInCubic(release),
+      _easeInCubic(splitEase),
     );
     _drawOrbAwareDrop(
       canvas,
@@ -621,8 +618,8 @@ class DynamicIslandDripPainter extends CustomPainter {
     required Paint shadowPaint,
   }) {
     final gather = _normalize(phase, 0.00, 0.12);
-    final tether = _normalize(phase, 0.12, 0.22);
-    final release = _normalize(phase, 0.22, 1.0);
+    final tether = _normalize(phase, 0.12, 0.28);
+    final split = _normalize(phase, 0.28, 1.0);
     final fade = _normalize(phase, 0.90, 1.0);
     final impactY =
         (_orbTopAtX(orbCenter, orbRadius, anchorX) ?? (orbCenter.dy - orbRadius)) +
@@ -641,14 +638,21 @@ class DynamicIslandDripPainter extends CustomPainter {
       return;
     }
 
-    if (phase < 0.22) {
+    final attachedLength = 5.0 + _easeOutCubic(tether) * 10.2;
+    final attachedShoulder =
+        _lerp(spec.shoulder * 0.64, spec.shoulder * 0.88, tether);
+    final attachedNeck = _lerp(spec.neck * 0.94, spec.neck * 0.54, tether);
+    final attachedTipRadius =
+        _lerp(spec.tipRadius * 0.62, spec.tipRadius * 1.02, tether);
+
+    if (phase < 0.28) {
       final path = _buildDripPath(
         anchorX: anchorX,
         baseY: anchorY,
-        shoulder: _lerp(spec.shoulder * 0.66, spec.shoulder * 0.78, tether),
-        neck: _lerp(spec.neck * 0.92, spec.neck * 0.70, tether),
-        length: 4.8 + _easeOutCubic(tether) * 8.4,
-        tipRadius: _lerp(spec.tipRadius * 0.70, spec.tipRadius * 0.92, tether),
+        shoulder: attachedShoulder,
+        neck: attachedNeck,
+        length: attachedLength,
+        tipRadius: attachedTipRadius,
       );
       canvas.drawPath(path.shift(const Offset(0, 1.1)), shadowPaint);
       canvas.drawPath(
@@ -663,27 +667,31 @@ class DynamicIslandDripPainter extends CustomPainter {
       return;
     }
 
-    final tailLength = _lerp(12.0, 2.2, _easeInOutCubic(release));
-    final tailPath = _buildDripPath(
+    final upperLength = _lerp(
+      attachedLength * 0.82,
+      2.6,
+      _easeInOutCubic(split),
+    );
+    final upperPath = _buildDripPath(
       anchorX: anchorX,
       baseY: anchorY,
-      shoulder: _lerp(spec.shoulder * 0.72, spec.shoulder * 0.34, release),
-      neck: _lerp(spec.neck * 0.74, spec.neck * 0.22, release),
-      length: tailLength,
-      tipRadius: _lerp(spec.tipRadius * 0.52, spec.tipRadius * 0.14, release),
+      shoulder: _lerp(attachedShoulder * 0.94, spec.shoulder * 0.20, split),
+      neck: _lerp(attachedNeck * 0.82, spec.neck * 0.10, split),
+      length: upperLength,
+      tipRadius: _lerp(attachedTipRadius * 0.34, spec.tipRadius * 0.05, split),
     );
-    canvas.drawPath(tailPath.shift(const Offset(0, 0.9)), shadowPaint);
+    canvas.drawPath(upperPath.shift(const Offset(0, 0.9)), shadowPaint);
     canvas.drawPath(
-      tailPath,
+      upperPath,
       _gradientLiquidPaint(
-        tailPath.getBounds(),
-        bottomY: anchorY + tailLength,
+        upperPath.getBounds(),
+        bottomY: anchorY + upperLength,
         orbCenter: orbCenter,
         orbRadius: orbRadius,
       ),
     );
 
-    final dropForm = _easeOutCubic(_normalize(release, 0.0, 0.18));
+    final dropForm = _easeOutCubic(_normalize(split, 0.0, 0.24));
     final dropRadius = _lerp(
       spec.tipRadius * 0.14,
       spec.tipRadius * 1.16,
@@ -694,11 +702,11 @@ class DynamicIslandDripPainter extends CustomPainter {
       return;
     }
 
-    final separationY = anchorY + tailLength;
+    final separationY = anchorY + upperLength;
     final dropY = _lerp(
-      separationY + dropRadius * 0.40,
+      separationY + dropRadius * 0.30,
       impactY,
-      _easeInCubic(release),
+      _easeInCubic(split),
     );
     _drawOrbAwareDrop(
       canvas,
