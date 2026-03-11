@@ -93,87 +93,63 @@ class DynamicIslandDripPainter extends CustomPainter {
 
   static const List<_DripSpec> _drips = <_DripSpec>[
     _DripSpec(
-      anchorFactor: -0.28,
-      phaseOffset: 0.02,
-      speed: 1.08,
-      shoulder: 4.2,
-      neck: 1.5,
-      primaryLength: 30,
-      tailLength: 34,
-      tipRadius: 2.8,
-      drift: 1.8,
-      detachedDrop: true,
-    ),
-    _DripSpec(
-      anchorFactor: -0.18,
-      phaseOffset: 0.31,
-      speed: 0.92,
-      shoulder: 5.0,
-      neck: 1.8,
-      primaryLength: 42,
-      tailLength: 48,
-      tipRadius: 3.1,
-      drift: 1.2,
+      anchorFactor: -0.19,
+      phaseOffset: 0.06,
+      speed: 0.94,
+      shoulder: 5.6,
+      neck: 2.1,
+      primaryLength: 32,
+      tailLength: 30,
+      tipRadius: 3.3,
+      rebound: 5.5,
       detachedDrop: false,
     ),
     _DripSpec(
-      anchorFactor: -0.09,
-      phaseOffset: 0.71,
-      speed: 1.22,
-      shoulder: 3.8,
-      neck: 1.3,
-      primaryLength: 24,
-      tailLength: 28,
-      tipRadius: 2.4,
-      drift: 0.8,
-      detachedDrop: true,
+      anchorFactor: -0.095,
+      phaseOffset: 0.34,
+      speed: 1.07,
+      shoulder: 6.2,
+      neck: 2.3,
+      primaryLength: 48,
+      tailLength: 38,
+      tipRadius: 3.8,
+      rebound: 6.0,
+      detachedDrop: false,
     ),
     _DripSpec(
       anchorFactor: 0.00,
-      phaseOffset: 0.16,
-      speed: 0.86,
-      shoulder: 5.8,
-      neck: 2.0,
-      primaryLength: 54,
-      tailLength: 74,
-      tipRadius: 3.8,
-      drift: 1.0,
+      phaseOffset: 0.18,
+      speed: 0.88,
+      shoulder: 6.8,
+      neck: 2.6,
+      primaryLength: 62,
+      tailLength: 56,
+      tipRadius: 4.2,
+      rebound: 7.0,
       detachedDrop: true,
     ),
     _DripSpec(
-      anchorFactor: 0.10,
-      phaseOffset: 0.52,
-      speed: 1.34,
-      shoulder: 3.6,
-      neck: 1.2,
-      primaryLength: 20,
-      tailLength: 24,
-      tipRadius: 2.2,
-      drift: 1.5,
+      anchorFactor: 0.095,
+      phaseOffset: 0.57,
+      speed: 1.13,
+      shoulder: 6.2,
+      neck: 2.3,
+      primaryLength: 44,
+      tailLength: 36,
+      tipRadius: 3.8,
+      rebound: 5.8,
       detachedDrop: false,
     ),
     _DripSpec(
-      anchorFactor: 0.20,
-      phaseOffset: 0.83,
-      speed: 1.03,
-      shoulder: 4.6,
-      neck: 1.6,
-      primaryLength: 34,
-      tailLength: 44,
-      tipRadius: 2.9,
-      drift: 1.1,
-      detachedDrop: true,
-    ),
-    _DripSpec(
-      anchorFactor: 0.30,
-      phaseOffset: 0.43,
+      anchorFactor: 0.19,
+      phaseOffset: 0.79,
       speed: 0.95,
-      shoulder: 4.1,
-      neck: 1.4,
-      primaryLength: 28,
-      tailLength: 36,
-      tipRadius: 2.6,
-      drift: 0.9,
+      shoulder: 5.6,
+      neck: 2.1,
+      primaryLength: 30,
+      tailLength: 28,
+      tipRadius: 3.3,
+      rebound: 5.2,
       detachedDrop: false,
     ),
   ];
@@ -192,8 +168,10 @@ class DynamicIslandDripPainter extends CustomPainter {
       ..isAntiAlias = true;
 
     final centerX = size.width / 2;
-    final sourceWidth = math.min(126.0, size.width * 0.34);
     final hasDynamicIslandInset = safeTop >= 44;
+    final sourceWidth = hasDynamicIslandInset
+        ? math.min(112.0, size.width * 0.30)
+        : math.min(126.0, size.width * 0.34);
 
     final islandTop = hasDynamicIslandInset
         ? math.max(2.0, safeTop - 47.0)
@@ -224,12 +202,20 @@ class DynamicIslandDripPainter extends CustomPainter {
       );
     }
 
+    _drawAttachmentFilm(
+      canvas,
+      centerX: centerX,
+      sourceWidth: sourceWidth,
+      baseY: sourceBottom + 1.0,
+      fillPaint: fillPaint,
+    );
+
     for (final drip in _drips) {
       _drawDrip(
         canvas,
         centerX: centerX,
         sourceWidth: sourceWidth,
-        baseY: sourceBottom - 1,
+        baseY: sourceBottom + 0.8,
         spec: drip,
         fillPaint: fillPaint,
         shadowPaint: shadowPaint,
@@ -270,28 +256,73 @@ class DynamicIslandDripPainter extends CustomPainter {
   }) {
     final left = centerX - width / 2;
     final right = centerX + width / 2;
-    final topY = math.max(0.0, top + 18).toDouble();
+    final topY = math.max(0.0, top + 17).toDouble();
+    const inset = 14.0;
     final path = Path()
-      ..moveTo(left + 10, topY)
-      ..lineTo(right - 10, topY)
-      ..quadraticBezierTo(right, topY, right, topY + 8)
+      ..moveTo(left + inset, topY)
+      ..lineTo(right - inset, topY)
+      ..quadraticBezierTo(right - 1, topY, right - 1, topY + 7)
       ..cubicTo(
-        right - width * 0.18,
-        bottom + 1.5,
-        centerX + width * 0.12,
-        bottom + 0.6,
+        right - width * 0.10,
+        bottom - 0.8,
+        centerX + width * 0.24,
+        bottom + 0.7,
         centerX,
-        bottom + 2.5,
+        bottom + 1.8,
       )
       ..cubicTo(
-        centerX - width * 0.12,
-        bottom + 0.6,
-        left + width * 0.18,
-        bottom + 1.5,
-        left,
-        topY + 8,
+        centerX - width * 0.24,
+        bottom + 0.7,
+        left + width * 0.10,
+        bottom - 0.8,
+        left + 1,
+        topY + 7,
       )
-      ..quadraticBezierTo(left, topY, left + 10, topY)
+      ..quadraticBezierTo(left + 1, topY, left + inset, topY)
+      ..close();
+
+    canvas.drawPath(path, fillPaint);
+  }
+
+  void _drawAttachmentFilm(
+    Canvas canvas, {
+    required double centerX,
+    required double sourceWidth,
+    required double baseY,
+    required Paint fillPaint,
+  }) {
+    final left = centerX - sourceWidth * 0.235;
+    final right = centerX + sourceWidth * 0.235;
+    final path = Path()..moveTo(left, baseY - 1.8);
+
+    for (final drip in _drips) {
+      final anchorX = centerX + sourceWidth * drip.anchorFactor;
+      final shoulder = drip.shoulder * 0.82;
+
+      path
+        ..lineTo(anchorX - shoulder, baseY - 1.8)
+        ..cubicTo(
+          anchorX - shoulder * 0.56,
+          baseY - 1.8,
+          anchorX - drip.neck * 0.9,
+          baseY + 1.1,
+          anchorX,
+          baseY + 1.35,
+        )
+        ..cubicTo(
+          anchorX + drip.neck * 0.9,
+          baseY + 1.1,
+          anchorX + shoulder * 0.56,
+          baseY - 1.8,
+          anchorX + shoulder,
+          baseY - 1.8,
+        );
+    }
+
+    path
+      ..lineTo(right, baseY - 1.8)
+      ..lineTo(right, baseY)
+      ..lineTo(left, baseY)
       ..close();
 
     canvas.drawPath(path, fillPaint);
@@ -307,25 +338,26 @@ class DynamicIslandDripPainter extends CustomPainter {
     required Paint shadowPaint,
   }) {
     final phase = (t * spec.speed + spec.phaseOffset) % 1.0;
-    if (phase < 0.06) {
+    if (phase < 0.05) {
       return;
     }
 
     final anchorX = centerX + sourceWidth * spec.anchorFactor;
-    final drift =
-        math.sin((t + spec.phaseOffset) * math.pi * 2) * spec.drift;
     final shoulderGrow = _easeOutCubic(_normalize(phase, 0.06, 0.28));
     final stretchPhase = _normalize(phase, 0.16, 0.74);
     final tailPhase = _normalize(phase, 0.74, 1.0);
+    final reboundPhase = _normalize(phase, 0.82, 1.0);
 
     final shoulder = _lerp(spec.shoulder * 0.78, spec.shoulder, shoulderGrow);
     final neck = _lerp(spec.shoulder * 0.48, spec.neck, stretchPhase);
 
-    final length = phase < 0.16
-        ? _easeOutCubic(_normalize(phase, 0.06, 0.16)) * 6
+    var length = phase < 0.16
+        ? _easeOutCubic(_normalize(phase, 0.05, 0.16)) * 7
         : 6 +
             _easeInOutCubic(stretchPhase) * spec.primaryLength +
             _easeInCubic(tailPhase) * spec.tailLength;
+    length -= _easeInOutCubic(reboundPhase) * spec.rebound;
+    length = math.max(1.4, length).toDouble();
 
     final tipRadius = _lerp(
       spec.tipRadius * 0.72,
@@ -350,7 +382,6 @@ class DynamicIslandDripPainter extends CustomPainter {
             neck: neck,
             length: length,
             tipRadius: tipRadius,
-            drift: drift,
           );
 
     canvas.drawPath(path.shift(const Offset(0, 1.3)), shadowPaint);
@@ -360,7 +391,7 @@ class DynamicIslandDripPainter extends CustomPainter {
       final detachedPhase = _normalize(phase, 0.76, 1.0);
       final detachedRadius =
           _lerp(spec.tipRadius * 0.36, spec.tipRadius * 0.62, detachedPhase);
-      final detachedX = anchorX + drift * 1.6 + math.sin(detachedPhase * 5) * 2;
+      final detachedX = anchorX;
       final detachedY = tipCenterY + 8 + detachedPhase * detachedPhase * 64;
 
       canvas.drawCircle(
@@ -411,9 +442,8 @@ class DynamicIslandDripPainter extends CustomPainter {
     required double neck,
     required double length,
     required double tipRadius,
-    required double drift,
   }) {
-    final tipCenterX = anchorX + drift;
+    final tipCenterX = anchorX;
     final tipCenterY = baseY + length;
     final tipRadiusY = tipRadius * 1.22;
 
@@ -500,7 +530,7 @@ class _DripSpec {
     required this.primaryLength,
     required this.tailLength,
     required this.tipRadius,
-    required this.drift,
+    required this.rebound,
     required this.detachedDrop,
   });
 
@@ -512,6 +542,6 @@ class _DripSpec {
   final double primaryLength;
   final double tailLength;
   final double tipRadius;
-  final double drift;
+  final double rebound;
   final bool detachedDrop;
 }
