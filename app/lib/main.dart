@@ -131,8 +131,8 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   }
 
   int _stretchIndexForCycle(int cycle) {
-    final count = DynamicIslandDripPainter._drips.length;
-    return ((3 * cycle) + 2) % count;
+    const allowed = <int>[0, 4, 3];
+    return allowed[cycle % allowed.length];
   }
 }
 
@@ -166,6 +166,7 @@ class DynamicIslandDripPainter extends CustomPainter {
       tipRadius: 4.4,
       travel: 82,
       anchorLift: -4.2,
+      dropScale: 1.0,
     ),
     _DripSpec(
       anchorFactor: -0.158,
@@ -174,8 +175,9 @@ class DynamicIslandDripPainter extends CustomPainter {
       shoulder: 7.0,
       neck: 2.6,
       tipRadius: 4.9,
-      travel: 94,
+      travel: 116,
       anchorLift: -2.0,
+      dropScale: 3.0,
     ),
     _DripSpec(
       anchorFactor: 0.00,
@@ -186,6 +188,7 @@ class DynamicIslandDripPainter extends CustomPainter {
       tipRadius: 5.9,
       travel: 146,
       anchorLift: 0.0,
+      dropScale: 1.0,
     ),
     _DripSpec(
       anchorFactor: 0.158,
@@ -196,6 +199,7 @@ class DynamicIslandDripPainter extends CustomPainter {
       tipRadius: 4.9,
       travel: 92,
       anchorLift: -2.0,
+      dropScale: 1.0,
     ),
     _DripSpec(
       anchorFactor: 0.315,
@@ -206,6 +210,7 @@ class DynamicIslandDripPainter extends CustomPainter {
       tipRadius: 4.4,
       travel: 80,
       anchorLift: -4.2,
+      dropScale: 1.0,
     ),
   ];
 
@@ -333,8 +338,15 @@ class DynamicIslandDripPainter extends CustomPainter {
     final topY = math.max(0.0, top + 17).toDouble();
     const inset = 14.0;
     final path = Path()
-      ..moveTo(left + inset, topY)
-      ..lineTo(right - inset, topY)
+      ..moveTo(left + inset, topY + 0.2)
+      ..cubicTo(
+        centerX - width * 0.22,
+        topY - 0.55,
+        centerX + width * 0.22,
+        topY - 0.55,
+        right - inset,
+        topY + 0.2,
+      )
       ..quadraticBezierTo(right - 1, topY, right - 1, topY + 7)
       ..cubicTo(
         right - width * 0.10,
@@ -387,22 +399,45 @@ class DynamicIslandDripPainter extends CustomPainter {
           anchorX + shoulder,
           baseY - 0.8,
         )
-        ..lineTo(anchorX + shoulder * 0.88, baseY + 0.35)
         ..cubicTo(
+          anchorX + shoulder * 0.82,
+          baseY + 0.08,
+          anchorX + drip.neck * 0.96,
+          anchorY + 1.18,
           anchorX + drip.neck * 0.7,
           anchorY + 1.6,
-          anchorX + drip.neck * 0.36,
-          anchorY + 1.8,
+        )
+        ..cubicTo(
+          anchorX + drip.neck * 0.52,
+          anchorY + 1.74,
+          anchorX + drip.neck * 0.22,
+          anchorY + 1.88,
           anchorX,
           anchorY + 1.95,
         )
         ..cubicTo(
-          anchorX - drip.neck * 0.36,
-          anchorY + 1.8,
+          anchorX - drip.neck * 0.22,
+          anchorY + 1.88,
+          anchorX - drip.neck * 0.52,
+          anchorY + 1.74,
           anchorX - drip.neck * 0.7,
           anchorY + 1.6,
-          anchorX - shoulder * 0.88,
-          baseY + 0.35,
+        )
+        ..cubicTo(
+          anchorX - drip.neck * 0.96,
+          anchorY + 1.18,
+          anchorX - shoulder * 0.82,
+          baseY + 0.08,
+          anchorX - shoulder,
+          baseY - 0.8,
+        )
+        ..cubicTo(
+          anchorX - shoulder * 0.82,
+          baseY + 0.08,
+          anchorX - shoulder * 0.92,
+          baseY - 0.34,
+          anchorX - shoulder,
+          baseY - 0.8,
         )
         ..close();
 
@@ -713,7 +748,7 @@ class DynamicIslandDripPainter extends CustomPainter {
     final dropForm = _easeOutCubic(_normalize(split, 0.0, 0.24));
     final dropRadius = _lerp(
       spec.tipRadius * 0.14,
-      spec.tipRadius * 1.16,
+      spec.tipRadius * 1.16 * spec.dropScale,
       dropForm,
     );
     if (dropRadius <= 0.08) {
@@ -1241,6 +1276,7 @@ class _DripSpec {
     required this.tipRadius,
     required this.travel,
     required this.anchorLift,
+    required this.dropScale,
   });
 
   final double anchorFactor;
@@ -1251,4 +1287,5 @@ class _DripSpec {
   final double tipRadius;
   final double travel;
   final double anchorLift;
+  final double dropScale;
 }
