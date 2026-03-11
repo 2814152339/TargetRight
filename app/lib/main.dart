@@ -533,9 +533,9 @@ class DynamicIslandDripPainter extends CustomPainter {
     required Paint fillPaint,
     required Paint shadowPaint,
   }) {
-    final gather = _normalize(phase, 0.00, 0.18);
-    final stretch = _normalize(phase, 0.18, 0.72);
-    final split = _normalize(phase, 0.72, 1.0);
+    final gather = _normalize(phase, 0.00, 0.16);
+    final stretch = _normalize(phase, 0.16, 0.66);
+    final split = _normalize(phase, 0.66, 1.0);
     final impactY =
         (_orbTopAtX(orbCenter, orbRadius, anchorX) ?? (orbCenter.dy - orbRadius)) +
             spec.tipRadius * 0.16;
@@ -551,16 +551,16 @@ class DynamicIslandDripPainter extends CustomPainter {
       _easeInOutCubic(stretch),
     );
 
-    final attachedLength = 8 + _easeInOutCubic(stretch) * (spec.travel * 0.72);
+    final attachedLength = 6.8 + _easeInOutCubic(stretch) * (spec.travel * 0.64);
     final attachedTipRadius = _lerp(
       spec.tipRadius * 0.72,
       spec.tipRadius * 1.16,
       _easeOutCubic(_normalize(phase, 0.22, 0.72)),
     );
 
-    if (phase < 0.72) {
-      final length = phase < 0.18
-          ? 1.4 + _easeOutCubic(gather) * 7.0
+    if (phase < 0.66) {
+      final length = phase < 0.16
+          ? 1.1 + _easeOutCubic(gather) * 5.2
           : attachedLength;
 
       final path = length < 8
@@ -593,20 +593,20 @@ class DynamicIslandDripPainter extends CustomPainter {
       return;
     }
 
-    final tailRecover = _normalize(split, 0.18, 1.0);
+    final tailRecover = _normalize(split, 0.08, 1.0);
     final upperLength = _lerp(
-      attachedLength * 0.94,
-      4.8,
-      _easeInOutCubic(tailRecover),
+      attachedLength * 0.82,
+      3.2,
+      _easeInCubic(tailRecover),
     );
     final upperPath = _buildDripPath(
       anchorX: anchorX,
       baseY: anchorY,
-      shoulder: _lerp(fullShoulder * 0.98, spec.shoulder * 0.24, tailRecover),
-      neck: _lerp(fullNeck * 0.92, spec.neck * 0.18, tailRecover),
+      shoulder: _lerp(fullShoulder * 0.92, spec.shoulder * 0.20, tailRecover),
+      neck: _lerp(fullNeck * 0.88, spec.neck * 0.14, tailRecover),
       length: upperLength,
       tipRadius: _lerp(
-        attachedTipRadius * 0.44,
+        attachedTipRadius * 0.34,
         spec.tipRadius * 0.08,
         tailRecover,
       ),
@@ -658,8 +658,8 @@ class DynamicIslandDripPainter extends CustomPainter {
     required Paint shadowPaint,
   }) {
     final gather = _normalize(phase, 0.00, 0.14);
-    final stretch = _normalize(phase, 0.14, 0.40);
-    final split = _normalize(phase, 0.40, 1.0);
+    final stretch = _normalize(phase, 0.14, 0.34);
+    final split = _normalize(phase, 0.34, 1.0);
     final impactY =
         (_orbTopAtX(orbCenter, orbRadius, anchorX) ?? (orbCenter.dy - orbRadius)) +
             spec.tipRadius * 0.12;
@@ -675,7 +675,7 @@ class DynamicIslandDripPainter extends CustomPainter {
       spec.neck * 0.96 * upperScale,
       _easeInOutCubic(stretch),
     );
-    final attachedLength = 2.6 + _easeOutCubic(stretch) * 5.8;
+    final attachedLength = 1.6 + _easeOutCubic(stretch) * 3.4;
     final attachedTipRadius = _lerp(
       spec.tipRadius * 0.56,
       spec.tipRadius * 0.98 * math.sqrt(spec.dropScale),
@@ -695,7 +695,7 @@ class DynamicIslandDripPainter extends CustomPainter {
       return;
     }
 
-    if (phase < 0.40) {
+    if (phase < 0.34) {
       final path = _buildDripPath(
         anchorX: anchorX,
         baseY: anchorY,
@@ -717,20 +717,20 @@ class DynamicIslandDripPainter extends CustomPainter {
       return;
     }
 
-    final tailRecover = _normalize(split, 0.18, 1.0);
+    final tailRecover = _normalize(split, 0.06, 1.0);
     final upperLength = _lerp(
-      attachedLength * 0.82,
-      1.4,
-      _easeInOutCubic(tailRecover),
+      attachedLength * 0.72,
+      0.8,
+      _easeInCubic(tailRecover),
     );
     final upperPath = _buildDripPath(
       anchorX: anchorX,
       baseY: anchorY,
-      shoulder: _lerp(fullShoulder * 0.96, spec.shoulder * 0.28, tailRecover),
-      neck: _lerp(fullNeck * 0.92, spec.neck * 0.24, tailRecover),
+      shoulder: _lerp(fullShoulder * 0.90, spec.shoulder * 0.24, tailRecover),
+      neck: _lerp(fullNeck * 0.86, spec.neck * 0.20, tailRecover),
       length: upperLength,
       tipRadius: _lerp(
-        attachedTipRadius * 0.38,
+        attachedTipRadius * 0.30,
         spec.tipRadius * 0.08,
         tailRecover,
       ),
