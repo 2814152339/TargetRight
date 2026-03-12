@@ -607,15 +607,14 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
   final ScrollController _scrollController = ScrollController();
   bool _isSnapping = false;
 
-  void _maybeSnap(ScrollEndNotification notification) {
+  void _snapToNearestSlot([double velocity = 0.0]) {
     if (!_scrollController.hasClients || _isSnapping) {
       return;
     }
 
     final position = _scrollController.position;
     final current = position.pixels;
-    final velocity = notification.dragDetails?.primaryVelocity ?? 0.0;
-    var nearestIndex = (current / _stepExtent).round().clamp(
+    final nearestIndex = (current / _stepExtent).round().clamp(
       0,
       _cards.length - 1,
     );
@@ -629,15 +628,36 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
     }
 
     _isSnapping = true;
-    _scrollController
-        .animateTo(
-          target,
-          duration: Duration(milliseconds: velocity.abs() > 180 ? 240 : 320),
-          curve: Curves.easeOutQuart,
-        )
-        .whenComplete(() {
-          _isSnapping = false;
-        });
+    final distance = target - current;
+    final overshoot = (distance * 0.16).clamp(-14.0, 14.0);
+    final preTarget = (target + overshoot).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+
+    Future<void> settle() async {
+      if ((preTarget - current).abs() > 6) {
+        await _scrollController.animateTo(
+          preTarget,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOutCubic,
+        );
+      }
+      await _scrollController.animateTo(
+        target,
+        duration: Duration(milliseconds: velocity.abs() > 180 ? 210 : 260),
+        curve: Curves.easeOutQuart,
+      );
+    }
+
+    settle().whenComplete(() {
+      _isSnapping = false;
+    });
+  }
+
+  void _maybeSnap(ScrollEndNotification notification) {
+    final velocity = notification.dragDetails?.primaryVelocity ?? 0.0;
+    _snapToNearestSlot(velocity);
   }
 
   @override
@@ -734,17 +754,11 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                                       _scrollController.jumpTo(next);
                                     },
                                     onVerticalDragEnd: (details) {
-                                      final fakeNotification =
-                                          ScrollEndNotification(
-                                            metrics: _scrollController.position,
-                                            context: context,
-                                            dragDetails: DragEndDetails(
-                                              primaryVelocity:
-                                                  details.primaryVelocity,
-                                            ),
-                                          );
-                                      _maybeSnap(fakeNotification);
+                                      _snapToNearestSlot(
+                                        details.primaryVelocity ?? 0.0,
+                                      );
                                     },
+                                    onVerticalDragCancel: _snapToNearestSlot,
                                     child: Stack(
                                       children: <Widget>[
                                         for (var i = 0; i < _cards.length; i++)
