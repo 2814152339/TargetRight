@@ -836,17 +836,17 @@ class FanReplicaCard extends StatelessWidget {
   static const List<ReplicaTrackSlot> _track = <ReplicaTrackSlot>[
     ReplicaTrackSlot(
       left: 0.18,
-      top: 0.08,
+      top: 0.12,
       angle: -0.48,
       scale: 0.94,
       opacity: 1,
     ),
-    ReplicaTrackSlot(left: 0.29, top: 0.26, angle: -0.30, scale: 1),
-    ReplicaTrackSlot(left: 0.27, top: 0.41, angle: -0.16, scale: 1),
-    ReplicaTrackSlot(left: 0.25, top: 0.56, angle: 0.00, scale: 1),
-    ReplicaTrackSlot(left: 0.20, top: 0.72, angle: 0.18, scale: 0.99),
-    ReplicaTrackSlot(left: 0.12, top: 0.89, angle: 0.35, scale: 0.97),
-    ReplicaTrackSlot(left: 0.02, top: 1.06, angle: 0.54, scale: 0.95),
+    ReplicaTrackSlot(left: 0.29, top: 0.28, angle: -0.30, scale: 1),
+    ReplicaTrackSlot(left: 0.27, top: 0.40, angle: -0.16, scale: 1),
+    ReplicaTrackSlot(left: 0.25, top: 0.52, angle: 0.00, scale: 1),
+    ReplicaTrackSlot(left: 0.20, top: 0.66, angle: 0.18, scale: 0.99),
+    ReplicaTrackSlot(left: 0.12, top: 0.80, angle: 0.35, scale: 0.97),
+    ReplicaTrackSlot(left: 0.02, top: 0.94, angle: 0.54, scale: 0.95),
   ];
 
   const FanReplicaCard({
@@ -909,7 +909,7 @@ class FanReplicaCard extends StatelessWidget {
       final first = _track.first;
       return ReplicaTrackSlot(
         left: first.left - 0.12,
-        top: first.top - 0.16,
+        top: first.top - 0.12,
         angle: first.angle - 0.12,
         scale: first.scale,
         opacity: 1,
@@ -919,7 +919,7 @@ class FanReplicaCard extends StatelessWidget {
       final last = _track.last;
       return ReplicaTrackSlot(
         left: last.left - 0.13,
-        top: last.top + 0.17,
+        top: last.top + 0.13,
         angle: last.angle + 0.14,
         scale: last.scale,
         opacity: 1,
