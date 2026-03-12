@@ -606,6 +606,7 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
 
   final ScrollController _scrollController = ScrollController();
   bool _isSnapping = false;
+  double _lastDragDelta = 0.0;
 
   void _snapToNearestSlot([double velocity = 0.0]) {
     if (!_scrollController.hasClients || _isSnapping) {
@@ -614,10 +615,21 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
 
     final position = _scrollController.position;
     final current = position.pixels;
-    final nearestIndex = (current / _stepExtent).round().clamp(
-      0,
-      _cards.length - 1,
-    );
+    final rawIndex = current / _stepExtent;
+    final floorIndex = rawIndex.floor();
+    final fraction = rawIndex - floorIndex;
+    final inferredDirection = velocity.abs() > 30
+        ? (velocity < 0 ? 1 : -1)
+        : (_lastDragDelta < 0 ? 1 : (_lastDragDelta > 0 ? -1 : 0));
+    int nearestIndex;
+    if (inferredDirection > 0) {
+      nearestIndex = fraction >= 0.18 ? floorIndex + 1 : floorIndex;
+    } else if (inferredDirection < 0) {
+      nearestIndex = fraction <= 0.82 ? floorIndex : floorIndex + 1;
+    } else {
+      nearestIndex = rawIndex.round();
+    }
+    nearestIndex = nearestIndex.clamp(0, _cards.length - 1);
 
     final target = (nearestIndex * _stepExtent).clamp(
       position.minScrollExtent,
@@ -742,9 +754,10 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                                       if (!_scrollController.hasClients) {
                                         return;
                                       }
+                                      _lastDragDelta = details.delta.dy;
                                       final next =
                                           (_scrollController.offset -
-                                                  details.delta.dy)
+                                                  details.delta.dy * 1.42)
                                               .clamp(
                                                 0.0,
                                                 _scrollController
@@ -758,7 +771,9 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                                         details.primaryVelocity ?? 0.0,
                                       );
                                     },
-                                    onVerticalDragCancel: _snapToNearestSlot,
+                                    onVerticalDragCancel: () {
+                                      _snapToNearestSlot();
+                                    },
                                     child: Stack(
                                       children: <Widget>[
                                         for (var i = 0; i < _cards.length; i++)
