@@ -570,30 +570,10 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
       titleDy: 3.0,
     ),
   ];
-  static const double _designCanvasHeight = 1500.0;
-  static const double _designTopGap = 250.0;
+  static const double _stepExtent = 150.0;
 
   final ScrollController _scrollController = ScrollController();
-  late final List<double> _snapOffsets;
   bool _isSnapping = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _snapOffsets = _buildSnapOffsets();
-  }
-
-  List<double> _buildSnapOffsets() {
-    const anchorY = 290.0;
-    return _cards
-        .map(
-          (e) => (_designTopGap + e.top - anchorY).clamp(
-            0.0,
-            _designTopGap + _designCanvasHeight,
-          ),
-        )
-        .toList(growable: false);
-  }
 
   void _maybeSnap(ScrollEndNotification notification) {
     if (!_scrollController.hasClients || _isSnapping) {
@@ -601,39 +581,20 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
     }
 
     final position = _scrollController.position;
-    if (!position.hasPixels) {
-      return;
-    }
     final current = position.pixels;
     final velocity = notification.dragDetails?.primaryVelocity ?? 0.0;
-
-    var nearestIndex = 0;
-    var nearestDistance = double.infinity;
-    for (var i = 0; i < _snapOffsets.length; i++) {
-      final distance = (current - _snapOffsets[i]).abs();
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearestIndex = i;
-      }
-    }
+    var nearestIndex = (current / _stepExtent).round().clamp(
+      0,
+      _cards.length - 1,
+    );
 
     if (velocity < -120) {
       nearestIndex = math.max(0, nearestIndex - 1);
     } else if (velocity > 120) {
-      nearestIndex = math.min(_snapOffsets.length - 1, nearestIndex + 1);
-    } else {
-      final threshold = nearestIndex < _snapOffsets.length - 1
-          ? (_snapOffsets[math.min(_snapOffsets.length - 1, nearestIndex + 1)] -
-                        _snapOffsets[nearestIndex])
-                    .abs() *
-                0.34
-          : 42.0;
-      if (nearestDistance >= 2.0 && nearestDistance <= threshold) {
-        return;
-      }
+      nearestIndex = math.min(_cards.length - 1, nearestIndex + 1);
     }
 
-    final target = _snapOffsets[nearestIndex].clamp(
+    final target = (nearestIndex * _stepExtent).clamp(
       position.minScrollExtent,
       position.maxScrollExtent,
     );
@@ -694,19 +655,16 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                             final offset = _scrollController.hasClients
                                 ? _scrollController.offset
                                 : 0.0;
-                            final maxExtent = _scrollController.hasClients
-                                ? math.max(
-                                    1.0,
-                                    _scrollController.position.maxScrollExtent,
-                                  )
-                                : 1.0;
-                            final steppedProgress = _snapOffsets.isEmpty
-                                ? 0.0
-                                : ((offset / math.max(1.0, maxExtent)) *
-                                              (_cards.length - 1))
-                                          .round() /
-                                      math.max(1, _cards.length - 1);
-                            final progress = steppedProgress.clamp(0.0, 1.0);
+                            final maxExtent = math.max(
+                              1.0,
+                              (_cards.length - 1) * _stepExtent,
+                            );
+                            final fractionalIndex = (offset / _stepExtent)
+                                .clamp(0.0, _cards.length - 1.0);
+                            final progress = (offset / maxExtent).clamp(
+                              0.0,
+                              1.0,
+                            );
 
                             return Stack(
                               children: <Widget>[
@@ -717,31 +675,53 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                                     progress: progress,
                                   ),
                                 ),
-                                NotificationListener<ScrollNotification>(
-                                  onNotification: (_) => true,
-                                  child: SingleChildScrollView(
-                                    controller: _scrollController,
-                                    physics: const _ReplicaScrollPhysics(
-                                      parent: BouncingScrollPhysics(
-                                        parent: AlwaysScrollableScrollPhysics(),
-                                      ),
-                                    ),
-                                    child: SizedBox(
-                                      height:
-                                          _designTopGap +
-                                          _designCanvasHeight +
-                                          media.height * 0.24,
-                                      child: Stack(
-                                        children: <Widget>[
-                                          for (final item in _cards)
-                                            PositionedReplicaCard(
-                                              item: item,
-                                              screenWidth: media.width,
-                                              designTopGap: _designTopGap,
-                                              scrollOffset: offset,
+                                SingleChildScrollView(
+                                  controller: _scrollController,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  child: SizedBox(
+                                    height: _cards.length * _stepExtent + 1,
+                                  ),
+                                ),
+                                Positioned.fill(
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onVerticalDragUpdate: (details) {
+                                      if (!_scrollController.hasClients) {
+                                        return;
+                                      }
+                                      final next =
+                                          (_scrollController.offset -
+                                                  details.delta.dy)
+                                              .clamp(
+                                                0.0,
+                                                _scrollController
+                                                    .position
+                                                    .maxScrollExtent,
+                                              );
+                                      _scrollController.jumpTo(next);
+                                    },
+                                    onVerticalDragEnd: (details) {
+                                      final fakeNotification =
+                                          ScrollEndNotification(
+                                            metrics: _scrollController.position,
+                                            context: context,
+                                            dragDetails: DragEndDetails(
+                                              primaryVelocity:
+                                                  details.primaryVelocity,
                                             ),
-                                        ],
-                                      ),
+                                          );
+                                      _maybeSnap(fakeNotification);
+                                    },
+                                    child: Stack(
+                                      children: <Widget>[
+                                        for (var i = 0; i < _cards.length; i++)
+                                          FanReplicaCard(
+                                            item: _cards[i],
+                                            itemIndex: i,
+                                            activeIndex: fractionalIndex,
+                                            screenSize: media,
+                                          ),
+                                      ],
                                     ),
                                   ),
                                 ),
@@ -831,6 +811,73 @@ class PositionedReplicaCard extends StatelessWidget {
       child: Transform.rotate(
         angle: item.angle,
         child: ReplicaCard(item: item, width: width, height: height),
+      ),
+    );
+  }
+}
+
+class FanReplicaCard extends StatelessWidget {
+  const FanReplicaCard({
+    super.key,
+    required this.item,
+    required this.itemIndex,
+    required this.activeIndex,
+    required this.screenSize,
+  });
+
+  final ReplicaCardData item;
+  final int itemIndex;
+  final double activeIndex;
+  final Size screenSize;
+
+  @override
+  Widget build(BuildContext context) {
+    final delta = itemIndex - activeIndex;
+    final absDelta = delta.abs();
+
+    final fanCenter = Offset(
+      screenSize.width * -0.25,
+      screenSize.height * 0.82,
+    );
+    final radius = screenSize.width * 1.06 + (item.width - 0.70) * 120;
+    final baseAngle = -0.92;
+    final stepAngle = 0.18;
+    final angle = (baseAngle + delta * stepAngle + item.angle * 0.12).clamp(
+      -1.16,
+      0.08,
+    );
+
+    final width = screenSize.width * item.width;
+    final height = screenSize.width * item.height;
+    final x = fanCenter.dx + math.cos(angle) * radius + (item.left - 0.18) * 54;
+    final y = fanCenter.dy + math.sin(angle) * radius + item.top * 0.012;
+
+    final tangentRotation = angle + math.pi / 2 - 0.10 + item.angle * 0.18;
+    final focus = (1 - (absDelta / 3.2)).clamp(0.0, 1.0);
+    final scale = 0.91 + focus * 0.08;
+    final opacity = 0.48 + focus * 0.52;
+    final inwardShift = (1 - focus) * -8;
+
+    return Positioned(
+      left: x,
+      top: y,
+      child: Transform.translate(
+        offset: Offset(-width * 0.15, -height / 2),
+        child: Transform.rotate(
+          angle: tangentRotation,
+          alignment: Alignment.centerLeft,
+          child: Transform.translate(
+            offset: Offset(inwardShift, 0),
+            child: Transform.scale(
+              scale: scale,
+              alignment: Alignment.centerLeft,
+              child: Opacity(
+                opacity: opacity,
+                child: ReplicaCard(item: item, width: width, height: height),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -945,32 +992,6 @@ class ReplicaCard extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-class _ReplicaScrollPhysics extends ScrollPhysics {
-  const _ReplicaScrollPhysics({super.parent});
-
-  @override
-  _ReplicaScrollPhysics applyTo(ScrollPhysics? ancestor) {
-    return _ReplicaScrollPhysics(parent: buildParent(ancestor));
-  }
-
-  @override
-  double applyPhysicsToUserOffset(ScrollMetrics position, double offset) {
-    final damped = offset * 0.88;
-    return super.applyPhysicsToUserOffset(position, damped);
-  }
-
-  @override
-  Simulation? createBallisticSimulation(
-    ScrollMetrics position,
-    double velocity,
-  ) {
-    if (velocity.abs() < 70) {
-      return super.createBallisticSimulation(position, 0);
-    }
-    return super.createBallisticSimulation(position, velocity * 0.92);
   }
 }
 
