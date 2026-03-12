@@ -328,30 +328,30 @@ class DynamicIslandDripPainter extends CustomPainter {
     final left = centerX - width / 2;
     final right = centerX + width / 2;
     final topY = math.max(0.0, top + 17).toDouble();
-    const inset = 9.8;
+    const inset = 8.4;
     final path = Path()
       ..moveTo(left + inset, topY + 0.2)
       ..cubicTo(
-        centerX - width * 0.286,
+        centerX - width * 0.304,
         topY - 0.55,
-        centerX + width * 0.286,
+        centerX + width * 0.304,
         topY - 0.55,
         right - inset,
         topY + 0.2,
       )
       ..quadraticBezierTo(right - 1, topY, right - 1, topY + 7)
       ..cubicTo(
-        right - width * 0.064,
+        right - width * 0.054,
         bottom - 0.8,
-        centerX + width * 0.314,
+        centerX + width * 0.334,
         bottom + 0.7,
         centerX,
         bottom + 1.8,
       )
       ..cubicTo(
-        centerX - width * 0.314,
+        centerX - width * 0.334,
         bottom + 0.7,
-        left + width * 0.064,
+        left + width * 0.054,
         bottom - 0.8,
         left + 1,
         topY + 7,
@@ -521,7 +521,7 @@ class DynamicIslandDripPainter extends CustomPainter {
       return;
     }
 
-    final tailRecover = _easeInCubic(_normalize(split, 0.0, 1.0));
+    final tailRecover = _easeOutCubic(_normalize(split, 0.0, 1.0));
     final upperLength = _lerp(attachedLength * 0.98, 5.2, tailRecover);
     final upperPath = _buildDripPath(
       anchorX: anchorX,
@@ -546,7 +546,6 @@ class DynamicIslandDripPainter extends CustomPainter {
       ),
     );
 
-    final splitEase = _easeOutCubic(split);
     final dropForm = _easeOutCubic(_normalize(split, 0.0, 0.32));
     final dropRadius = _lerp(
       spec.tipRadius * 0.24,
@@ -557,7 +556,7 @@ class DynamicIslandDripPainter extends CustomPainter {
     final dropY = _lerp(
       separationY + dropRadius * 0.34,
       impactY,
-      _easeInCubic(splitEase),
+      _easeInQuart(split),
     );
     _drawOrbAwareDrop(
       canvas,
@@ -628,7 +627,7 @@ class DynamicIslandDripPainter extends CustomPainter {
     final dropY = _lerp(
       exposedCenterY + radius * 0.08,
       impactY,
-      _easeInCubic(fall),
+      _easeInQuart(fall),
     );
     _drawOrbAwareDrop(
       canvas,
@@ -1105,7 +1104,7 @@ class DynamicIslandDripPainter extends CustomPainter {
 
   static double _easeOutCubic(double x) => 1 - math.pow(1 - x, 3).toDouble();
 
-  static double _easeInCubic(double x) => x * x * x;
+  static double _easeInQuart(double x) => x * x * x * x;
 
   static double _easeInOutCubic(double x) {
     if (x < 0.5) {
