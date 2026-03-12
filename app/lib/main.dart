@@ -569,6 +569,38 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
       titleDx: -1.0,
       titleDy: 3.0,
     ),
+    ReplicaCardData(
+      index: 11,
+      title: 'system',
+      color: Color(0xFFD92DFF),
+      slotColor: Color(0xFF5E006E),
+      angle: -0.350,
+      left: 0.020,
+      top: 1482,
+      width: 0.705,
+      height: 0.103,
+      slotWidthFactor: 0.305,
+      slotInsetRight: 0.022,
+      slotInsetVertical: 0.082,
+      titleDx: -1.0,
+      titleDy: 2.0,
+    ),
+    ReplicaCardData(
+      index: 12,
+      title: 'network',
+      color: Color(0xFFFF3D8E),
+      slotColor: Color(0xFF7A0A3D),
+      angle: -0.260,
+      left: 0.070,
+      top: 1640,
+      width: 0.705,
+      height: 0.103,
+      slotWidthFactor: 0.305,
+      slotInsetRight: 0.022,
+      slotInsetVertical: 0.082,
+      titleDx: -1.0,
+      titleDy: 2.0,
+    ),
   ];
   static const double _stepExtent = 150.0;
 
@@ -671,9 +703,10 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                               children: <Widget>[
                                 Positioned(
                                   left: media.width * 0.050,
-                                  top: media.height * 0.435,
+                                  top: media.height * 0.30,
                                   child: LeftSegmentIndicator(
                                     progress: progress,
+                                    count: _cards.length,
                                   ),
                                 ),
                                 SingleChildScrollView(
@@ -729,8 +762,8 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                                 ),
                                 Positioned(
                                   right: media.width * 0.010,
-                                  top: media.height * 0.095,
-                                  bottom: media.height * 0.095,
+                                  top: media.height * 0.070,
+                                  bottom: media.height * 0.085,
                                   child: VisualScrollRail(progress: progress),
                                 ),
                               ],
@@ -836,13 +869,13 @@ class PositionedReplicaCard extends StatelessWidget {
 
 class FanReplicaCard extends StatelessWidget {
   static const List<ReplicaTrackSlot> _track = <ReplicaTrackSlot>[
-    ReplicaTrackSlot(left: 0.34, top: 0.14, angle: -0.48, scale: 0.94),
-    ReplicaTrackSlot(left: 0.31, top: 0.26, angle: -0.32, scale: 0.98),
-    ReplicaTrackSlot(left: 0.28, top: 0.39, angle: -0.16, scale: 0.99),
-    ReplicaTrackSlot(left: 0.25, top: 0.52, angle: 0.00, scale: 1.00),
-    ReplicaTrackSlot(left: 0.20, top: 0.65, angle: 0.16, scale: 0.99),
-    ReplicaTrackSlot(left: 0.13, top: 0.78, angle: 0.32, scale: 0.98),
-    ReplicaTrackSlot(left: 0.04, top: 0.91, angle: 0.48, scale: 0.96),
+    ReplicaTrackSlot(left: 0.20, top: 0.02, angle: -0.54, scale: 0.94),
+    ReplicaTrackSlot(left: 0.28, top: 0.14, angle: -0.36, scale: 0.98),
+    ReplicaTrackSlot(left: 0.32, top: 0.26, angle: -0.18, scale: 0.99),
+    ReplicaTrackSlot(left: 0.28, top: 0.39, angle: 0.00, scale: 1.00),
+    ReplicaTrackSlot(left: 0.20, top: 0.54, angle: 0.18, scale: 0.99),
+    ReplicaTrackSlot(left: 0.10, top: 0.71, angle: 0.36, scale: 0.98),
+    ReplicaTrackSlot(left: -0.03, top: 0.90, angle: 0.54, scale: 0.96),
   ];
 
   const FanReplicaCard({
@@ -1057,24 +1090,30 @@ class ReplicaCard extends StatelessWidget {
 }
 
 class LeftSegmentIndicator extends StatelessWidget {
-  const LeftSegmentIndicator({super.key, required this.progress});
+  const LeftSegmentIndicator({
+    super.key,
+    required this.progress,
+    required this.count,
+  });
 
   final double progress;
+  final int count;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: 26,
       height: 120,
-      child: CustomPaint(painter: LeftSegmentIndicatorPainter(progress)),
+      child: CustomPaint(painter: LeftSegmentIndicatorPainter(progress, count)),
     );
   }
 }
 
 class LeftSegmentIndicatorPainter extends CustomPainter {
-  LeftSegmentIndicatorPainter(this.progress);
+  LeftSegmentIndicatorPainter(this.progress, this.count);
 
   final double progress;
+  final int count;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1088,10 +1127,9 @@ class LeftSegmentIndicatorPainter extends CustomPainter {
       ..strokeWidth = 2.6
       ..strokeCap = StrokeCap.round;
 
-    const count = 10;
     const startX = 1.5;
     const endX = 21.5;
-    const gap = 8.8;
+    final gap = count > 1 ? (size.height - 18) / (count - 1) : 0.0;
     const startY = 9.0;
 
     for (var i = 0; i < count; i++) {
@@ -1106,7 +1144,7 @@ class LeftSegmentIndicatorPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant LeftSegmentIndicatorPainter oldDelegate) {
-    return oldDelegate.progress != progress;
+    return oldDelegate.progress != progress || oldDelegate.count != count;
   }
 }
 
