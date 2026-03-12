@@ -835,22 +835,22 @@ class PositionedReplicaCard extends StatelessWidget {
 class FanReplicaCard extends StatelessWidget {
   static const List<ReplicaTrackSlot> _track = <ReplicaTrackSlot>[
     ReplicaTrackSlot(
-      left: -0.10,
-      top: 0.25,
-      angle: -0.56,
+      left: 0.03,
+      top: 0.24,
+      angle: -0.58,
       scale: 0.97,
       opacity: 0.98,
     ),
-    ReplicaTrackSlot(left: 0.26, top: 0.42, angle: 0.00, scale: 1.00),
-    ReplicaTrackSlot(left: 0.20, top: 0.56, angle: -0.22, scale: 1.00),
-    ReplicaTrackSlot(left: 0.09, top: 0.70, angle: -0.40, scale: 0.99),
-    ReplicaTrackSlot(left: -0.02, top: 0.86, angle: -0.58, scale: 0.98),
-    ReplicaTrackSlot(left: -0.12, top: 1.03, angle: -0.73, scale: 0.96),
-    ReplicaTrackSlot(left: -0.20, top: 1.20, angle: -0.86, scale: 0.94),
+    ReplicaTrackSlot(left: 0.24, top: 0.43, angle: 0.00, scale: 1.00),
+    ReplicaTrackSlot(left: 0.19, top: 0.58, angle: -0.20, scale: 1.00),
+    ReplicaTrackSlot(left: 0.09, top: 0.74, angle: -0.39, scale: 0.99),
+    ReplicaTrackSlot(left: 0.00, top: 0.90, angle: -0.56, scale: 0.98),
+    ReplicaTrackSlot(left: -0.08, top: 1.06, angle: -0.69, scale: 0.96),
+    ReplicaTrackSlot(left: -0.15, top: 1.22, angle: -0.80, scale: 0.94),
     ReplicaTrackSlot(
-      left: -0.28,
+      left: -0.23,
       top: 1.36,
-      angle: -0.98,
+      angle: -0.90,
       scale: 0.92,
       opacity: 0.90,
     ),
@@ -878,8 +878,8 @@ class FanReplicaCard extends StatelessWidget {
 
     final lowerSlot = _slotFor(lowerIndex);
     final upperSlot = _slotFor(upperIndex);
-    final width = screenSize.width * item.width;
-    final height = screenSize.width * item.height;
+    final width = screenSize.width * item.width * 0.84;
+    final height = screenSize.width * item.height * 1.72;
     final left = _lerp(lowerSlot.left, upperSlot.left, t) * screenSize.width;
     final top = _lerp(lowerSlot.top, upperSlot.top, t) * screenSize.height;
     final angle = _lerp(lowerSlot.angle, upperSlot.angle, t);
@@ -901,7 +901,7 @@ class FanReplicaCard extends StatelessWidget {
       left: left,
       top: top,
       child: Transform.translate(
-        offset: Offset(-width * 0.15, -height / 2),
+        offset: Offset(-width * 0.08, -height / 2),
         child: Transform.rotate(
           angle: angle,
           alignment: Alignment.centerLeft,
