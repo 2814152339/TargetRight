@@ -659,12 +659,13 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                               1.0,
                               (_cards.length - 1) * _stepExtent,
                             );
-                            final fractionalIndex = (offset / _stepExtent)
-                                .clamp(0.0, _cards.length - 1.0);
+                            final settledActiveIndex =
+                                (offset / _stepExtent) - 3;
                             final progress = (offset / maxExtent).clamp(
                               0.0,
                               1.0,
                             );
+                            final fractionalIndex = settledActiveIndex;
 
                             return Stack(
                               children: <Widget>[
@@ -719,6 +720,7 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                                             item: _cards[i],
                                             itemIndex: i,
                                             activeIndex: fractionalIndex,
+                                            panelProgress: widget.progress,
                                             screenSize: media,
                                           ),
                                       ],
@@ -834,19 +836,13 @@ class PositionedReplicaCard extends StatelessWidget {
 
 class FanReplicaCard extends StatelessWidget {
   static const List<ReplicaTrackSlot> _track = <ReplicaTrackSlot>[
-    ReplicaTrackSlot(
-      left: 0.18,
-      top: 0.12,
-      angle: -0.48,
-      scale: 0.94,
-      opacity: 1,
-    ),
-    ReplicaTrackSlot(left: 0.29, top: 0.28, angle: -0.30, scale: 1),
-    ReplicaTrackSlot(left: 0.27, top: 0.40, angle: -0.16, scale: 1),
-    ReplicaTrackSlot(left: 0.25, top: 0.52, angle: 0.00, scale: 1),
-    ReplicaTrackSlot(left: 0.20, top: 0.66, angle: 0.18, scale: 0.99),
-    ReplicaTrackSlot(left: 0.12, top: 0.80, angle: 0.35, scale: 0.97),
-    ReplicaTrackSlot(left: 0.02, top: 0.94, angle: 0.54, scale: 0.95),
+    ReplicaTrackSlot(left: 0.34, top: 0.14, angle: -0.48, scale: 0.94),
+    ReplicaTrackSlot(left: 0.31, top: 0.26, angle: -0.32, scale: 0.98),
+    ReplicaTrackSlot(left: 0.28, top: 0.39, angle: -0.16, scale: 0.99),
+    ReplicaTrackSlot(left: 0.25, top: 0.52, angle: 0.00, scale: 1.00),
+    ReplicaTrackSlot(left: 0.20, top: 0.65, angle: 0.16, scale: 0.99),
+    ReplicaTrackSlot(left: 0.13, top: 0.78, angle: 0.32, scale: 0.98),
+    ReplicaTrackSlot(left: 0.04, top: 0.91, angle: 0.48, scale: 0.96),
   ];
 
   const FanReplicaCard({
@@ -854,17 +850,21 @@ class FanReplicaCard extends StatelessWidget {
     required this.item,
     required this.itemIndex,
     required this.activeIndex,
+    required this.panelProgress,
     required this.screenSize,
   });
 
   final ReplicaCardData item;
   final int itemIndex;
   final double activeIndex;
+  final double panelProgress;
   final Size screenSize;
 
   @override
   Widget build(BuildContext context) {
-    final trackIndex = itemIndex - activeIndex;
+    final settledIndex = itemIndex - activeIndex;
+    final entryShift = (1 - Curves.easeOutCubic.transform(panelProgress)) * 3.2;
+    final trackIndex = settledIndex + entryShift;
     final lowerIndex = trackIndex.floor();
     final upperIndex = trackIndex.ceil();
     final t = (trackIndex - lowerIndex).clamp(0.0, 1.0);
@@ -894,9 +894,12 @@ class FanReplicaCard extends StatelessWidget {
           child: Transform.scale(
             scale: scale,
             alignment: Alignment.centerLeft,
-            child: Opacity(
-              opacity: opacity,
-              child: ReplicaCard(item: item, width: width, height: height),
+            child: IgnorePointer(
+              ignoring: opacity <= 0,
+              child: Opacity(
+                opacity: opacity,
+                child: ReplicaCard(item: item, width: width, height: height),
+              ),
             ),
           ),
         ),
@@ -907,20 +910,30 @@ class FanReplicaCard extends StatelessWidget {
   static ReplicaTrackSlot _slotFor(int index) {
     if (index < 0) {
       final first = _track.first;
+      final second = _track[1];
+      final dx = first.left - second.left;
+      final dy = first.top - second.top;
+      final da = first.angle - second.angle;
+      final distance = -index.toDouble();
       return ReplicaTrackSlot(
-        left: first.left - 0.12,
-        top: first.top - 0.12,
-        angle: first.angle - 0.12,
+        left: first.left + dx * distance,
+        top: first.top + dy * distance,
+        angle: first.angle + da * distance,
         scale: first.scale,
         opacity: 1,
       );
     }
     if (index > _track.length - 1) {
       final last = _track.last;
+      final previous = _track[_track.length - 2];
+      final dx = last.left - previous.left;
+      final dy = last.top - previous.top;
+      final da = last.angle - previous.angle;
+      final distance = index - (_track.length - 1).toDouble();
       return ReplicaTrackSlot(
-        left: last.left - 0.13,
-        top: last.top + 0.13,
-        angle: last.angle + 0.14,
+        left: last.left + dx * distance,
+        top: last.top + dy * distance,
+        angle: last.angle + da * distance,
         scale: last.scale,
         opacity: 1,
       );
