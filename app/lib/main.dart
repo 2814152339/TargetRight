@@ -328,30 +328,30 @@ class DynamicIslandDripPainter extends CustomPainter {
     final left = centerX - width / 2;
     final right = centerX + width / 2;
     final topY = math.max(0.0, top + 17).toDouble();
-    const inset = 8.4;
+    const inset = 7.2;
     final path = Path()
       ..moveTo(left + inset, topY + 0.2)
       ..cubicTo(
-        centerX - width * 0.304,
+        centerX - width * 0.320,
         topY - 0.55,
-        centerX + width * 0.304,
+        centerX + width * 0.320,
         topY - 0.55,
         right - inset,
         topY + 0.2,
       )
       ..quadraticBezierTo(right - 1, topY, right - 1, topY + 7)
       ..cubicTo(
-        right - width * 0.054,
+        right - width * 0.046,
         bottom - 0.8,
-        centerX + width * 0.334,
+        centerX + width * 0.350,
         bottom + 0.7,
         centerX,
         bottom + 1.8,
       )
       ..cubicTo(
-        centerX - width * 0.334,
+        centerX - width * 0.350,
         bottom + 0.7,
-        left + width * 0.054,
+        left + width * 0.046,
         bottom - 0.8,
         left + 1,
         topY + 7,
@@ -523,7 +523,7 @@ class DynamicIslandDripPainter extends CustomPainter {
     }
 
     final detachPhase = _easeOutCubic(_normalize(split, 0.0, 0.30));
-    final tailRecover = _easeOutCubic(_normalize(split, 0.28, 1.0));
+    final tailRecover = _easeOutCubic(_normalize(split, 0.30, 0.66));
     final upperLength = _lerp(attachedLength, 5.0, tailRecover);
     final upperPath = _buildDripPath(
       anchorX: anchorX,
