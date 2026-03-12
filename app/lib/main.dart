@@ -135,8 +135,8 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   }
 
   int _stretchIndexForCycle(int cycle) {
-    final count = DynamicIslandDripPainter._drips.length;
-    return ((3 * cycle) + 2) % count;
+    const allowed = <int>[0, 4, 1, 3];
+    return allowed[cycle % allowed.length];
   }
 }
 
@@ -157,8 +157,8 @@ class DynamicIslandDripPainter extends CustomPainter {
   final double orbFill;
   final Color color;
 
-  static const Color _orbBlueTop = Color(0xFF74A7FF);
-  static const Color _orbBlueBottom = Color(0xFF2F63F2);
+  static const Color _orbBlueTop = Color(0xFF5D9DFF);
+  static const Color _orbBlueBottom = Color(0xFF0E4FFF);
 
   static const List<_DripSpec> _drips = <_DripSpec>[
     _DripSpec(
@@ -398,22 +398,13 @@ class DynamicIslandDripPainter extends CustomPainter {
           anchorX + shoulder,
           baseY - 0.8,
         )
-        ..lineTo(anchorX + shoulder * 0.88, baseY + 0.35)
         ..cubicTo(
-          anchorX + drip.neck * 0.7,
-          anchorY + 1.6,
-          anchorX + drip.neck * 0.36,
-          anchorY + 1.8,
-          anchorX,
-          anchorY + 1.95,
-        )
-        ..cubicTo(
-          anchorX - drip.neck * 0.36,
-          anchorY + 1.8,
-          anchorX - drip.neck * 0.7,
-          anchorY + 1.6,
-          anchorX - shoulder * 0.88,
-          baseY + 0.35,
+          anchorX + shoulder * 0.76,
+          baseY - 0.46,
+          anchorX - shoulder * 0.76,
+          baseY - 0.46,
+          anchorX - shoulder,
+          baseY - 0.8,
         )
         ..close();
 
@@ -634,14 +625,20 @@ class DynamicIslandDripPainter extends CustomPainter {
     required Paint fillPaint,
     required Paint shadowPaint,
   }) {
-    final emerge = _normalize(phase, 0.05, 0.30);
-    final fall = _normalize(phase, 0.30, 1.0);
+    final emerge = _normalize(phase, 0.06, 0.36);
+    final fall = _normalize(phase, 0.36, 1.0);
     final impactY =
         (_orbTopAtX(orbCenter, orbRadius, anchorX) ??
             (orbCenter.dy - orbRadius)) +
         spec.tipRadius * 0.12;
-    final radius = spec.tipRadius * 1.02;
-    final hiddenCenterY = anchorY - radius * 0.82;
+    final radius =
+        spec.tipRadius *
+        (spec.tipRadius >= 5.5
+            ? 1.12
+            : spec.tipRadius >= 4.9
+            ? 1.06
+            : 1.02);
+    final hiddenCenterY = anchorY - radius * 1.02;
     final exposedCenterY = anchorY + radius * 1.02;
     final emergeY = _lerp(
       hiddenCenterY,
@@ -649,12 +646,12 @@ class DynamicIslandDripPainter extends CustomPainter {
       _easeInOutCubic(emerge),
     );
 
-    if (phase < 0.30) {
+    if (phase < 0.36) {
       canvas.save();
       canvas.clipRect(
         Rect.fromLTRB(
           anchorX - radius * 2.2,
-          anchorY - 0.15,
+          anchorY,
           anchorX + radius * 2.2,
           anchorY + radius * 2.4,
         ),
@@ -1130,7 +1127,8 @@ class DynamicIslandDripPainter extends CustomPainter {
     final blend = _easeOutCubic(
       _clamp01((bottomY - 70) / ((orbCenter.dy - orbRadius * 0.12) - 70)),
     );
-    final lowerColor = Color.lerp(color, _orbBlueTop, blend)!;
+    final targetBlue = Color.lerp(_orbBlueTop, _orbBlueBottom, 0.44)!;
+    final lowerColor = Color.lerp(color, targetBlue, blend)!;
     final midColor = Color.lerp(color, lowerColor, 0.42)!;
     return Paint()
       ..shader = LinearGradient(
@@ -1143,7 +1141,8 @@ class DynamicIslandDripPainter extends CustomPainter {
   }
 
   static double _phaseFor(double t, _DripSpec spec) {
-    return (t * spec.speed + spec.phaseOffset) % 1.0;
+    final speed = math.min(spec.speed, 1.0);
+    return (t * speed + spec.phaseOffset) % 1.0;
   }
 
   static double _lerp(double a, double b, double t) => a + (b - a) * t;
