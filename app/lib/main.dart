@@ -157,8 +157,8 @@ class DynamicIslandDripPainter extends CustomPainter {
   final double orbFill;
   final Color color;
 
-  static const Color _orbBlueTop = Color(0xFF5D9DFF);
-  static const Color _orbBlueBottom = Color(0xFF0E4FFF);
+  static const Color _orbBlueTop = Color(0xFF7ABDFF);
+  static const Color _orbBlueBottom = Color(0xFF2C79FF);
 
   static const List<_DripSpec> _drips = <_DripSpec>[
     _DripSpec(
@@ -328,30 +328,30 @@ class DynamicIslandDripPainter extends CustomPainter {
     final left = centerX - width / 2;
     final right = centerX + width / 2;
     final topY = math.max(0.0, top + 17).toDouble();
-    const inset = 14.0;
+    const inset = 12.6;
     final path = Path()
       ..moveTo(left + inset, topY + 0.2)
       ..cubicTo(
-        centerX - width * 0.22,
+        centerX - width * 0.242,
         topY - 0.55,
-        centerX + width * 0.22,
+        centerX + width * 0.242,
         topY - 0.55,
         right - inset,
         topY + 0.2,
       )
       ..quadraticBezierTo(right - 1, topY, right - 1, topY + 7)
       ..cubicTo(
-        right - width * 0.10,
+        right - width * 0.088,
         bottom - 0.8,
-        centerX + width * 0.24,
+        centerX + width * 0.264,
         bottom + 0.7,
         centerX,
         bottom + 1.8,
       )
       ..cubicTo(
-        centerX - width * 0.24,
+        centerX - width * 0.264,
         bottom + 0.7,
-        left + width * 0.10,
+        left + width * 0.088,
         bottom - 0.8,
         left + 1,
         topY + 7,
@@ -368,49 +368,7 @@ class DynamicIslandDripPainter extends CustomPainter {
     required double sourceWidth,
     required double baseY,
     required Paint fillPaint,
-  }) {
-    for (var i = 0; i < _drips.length; i++) {
-      final drip = _drips[i];
-      final shouldDrawCap =
-          i == activeStretchIndex || (i == previousStretchIndex && t < 0.16);
-      if (!shouldDrawCap) {
-        continue;
-      }
-
-      final anchorX = centerX + sourceWidth * drip.anchorFactor;
-      final shoulder = drip.shoulder * 0.88;
-      final anchorY = baseY + drip.anchorLift;
-      final capPath = Path()
-        ..moveTo(anchorX - shoulder, baseY - 0.8)
-        ..cubicTo(
-          anchorX - shoulder * 0.58,
-          baseY - 0.8,
-          anchorX - drip.neck,
-          anchorY + 0.9,
-          anchorX,
-          anchorY + 1.2,
-        )
-        ..cubicTo(
-          anchorX + drip.neck,
-          anchorY + 0.9,
-          anchorX + shoulder * 0.58,
-          baseY - 0.8,
-          anchorX + shoulder,
-          baseY - 0.8,
-        )
-        ..cubicTo(
-          anchorX + shoulder * 0.76,
-          baseY - 0.46,
-          anchorX - shoulder * 0.76,
-          baseY - 0.46,
-          anchorX - shoulder,
-          baseY - 0.8,
-        )
-        ..close();
-
-      canvas.drawPath(capPath, fillPaint);
-    }
-  }
+  }) {}
 
   void _drawDrip(
     Canvas canvas, {
@@ -519,10 +477,11 @@ class DynamicIslandDripPainter extends CustomPainter {
       _easeInOutCubic(stretch),
     );
 
-    final attachedLength = 8 + _easeInOutCubic(stretch) * (spec.travel * 0.72);
+    final attachedLength =
+        6.6 + _easeInOutCubic(stretch) * (spec.travel * 0.58);
     final attachedTipRadius = _lerp(
       spec.tipRadius * 0.72,
-      spec.tipRadius * 1.16,
+      spec.tipRadius * 1.06,
       _easeOutCubic(_normalize(phase, 0.22, 0.72)),
     );
 
@@ -561,20 +520,16 @@ class DynamicIslandDripPainter extends CustomPainter {
       return;
     }
 
-    final tailRecover = _normalize(split, 0.18, 1.0);
-    final upperLength = _lerp(
-      attachedLength * 0.94,
-      4.8,
-      _easeInOutCubic(tailRecover),
-    );
+    final tailRecover = _easeInCubic(_normalize(split, 0.0, 1.0));
+    final upperLength = _lerp(attachedLength * 0.98, 5.2, tailRecover);
     final upperPath = _buildDripPath(
       anchorX: anchorX,
       baseY: anchorY,
-      shoulder: _lerp(fullShoulder * 0.98, spec.shoulder * 0.24, tailRecover),
-      neck: _lerp(fullNeck * 0.92, spec.neck * 0.18, tailRecover),
+      shoulder: _lerp(fullShoulder * 0.98, spec.shoulder * 0.34, tailRecover),
+      neck: _lerp(fullNeck * 0.92, spec.neck * 0.22, tailRecover),
       length: upperLength,
       tipRadius: _lerp(
-        attachedTipRadius * 0.44,
+        attachedTipRadius * 0.38,
         spec.tipRadius * 0.08,
         tailRecover,
       ),
@@ -593,8 +548,8 @@ class DynamicIslandDripPainter extends CustomPainter {
     final splitEase = _easeOutCubic(split);
     final dropForm = _easeOutCubic(_normalize(split, 0.0, 0.32));
     final dropRadius = _lerp(
-      spec.tipRadius * 0.18,
-      spec.tipRadius * 1.28,
+      spec.tipRadius * 0.24,
+      spec.tipRadius * 1.10,
       dropForm,
     );
     final separationY = anchorY + upperLength;
@@ -1127,9 +1082,9 @@ class DynamicIslandDripPainter extends CustomPainter {
     final blend = _easeOutCubic(
       _clamp01((bottomY - 70) / ((orbCenter.dy - orbRadius * 0.12) - 70)),
     );
-    final targetBlue = Color.lerp(_orbBlueTop, _orbBlueBottom, 0.44)!;
+    final targetBlue = Color.lerp(_orbBlueTop, _orbBlueBottom, 0.18)!;
     final lowerColor = Color.lerp(color, targetBlue, blend)!;
-    final midColor = Color.lerp(color, lowerColor, 0.42)!;
+    final midColor = Color.lerp(color, lowerColor, 0.64)!;
     return Paint()
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
