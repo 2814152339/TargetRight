@@ -459,8 +459,9 @@ class DynamicIslandDripPainter extends CustomPainter {
     required Paint shadowPaint,
   }) {
     final gather = _normalize(phase, 0.00, 0.18);
-    final stretch = _normalize(phase, 0.18, 0.72);
-    final split = _normalize(phase, 0.72, 1.0);
+    const splitStart = 0.68;
+    final stretch = _normalize(phase, 0.18, splitStart);
+    final split = _normalize(phase, splitStart, 1.0);
     final impactY =
         (_orbTopAtX(orbCenter, orbRadius, anchorX) ??
             (orbCenter.dy - orbRadius)) +
@@ -483,10 +484,10 @@ class DynamicIslandDripPainter extends CustomPainter {
     final attachedTipRadius = _lerp(
       spec.tipRadius * 0.72,
       spec.tipRadius * 1.06,
-      _easeOutCubic(_normalize(phase, 0.22, 0.72)),
+      _easeOutCubic(_normalize(phase, 0.22, splitStart)),
     );
 
-    if (phase < 0.72) {
+    if (phase < splitStart) {
       final length = phase < 0.18
           ? _lerp(1.2, minAttachedLength, _easeOutCubic(gather))
           : attachedLength;
@@ -521,13 +522,13 @@ class DynamicIslandDripPainter extends CustomPainter {
       return;
     }
 
-    final detachPhase = _easeOutCubic(_normalize(split, 0.0, 0.42));
-    final tailRecover = _easeOutCubic(_normalize(split, 0.46, 1.0));
-    final upperLength = _lerp(attachedLength, 5.2, tailRecover);
+    final detachPhase = _easeOutCubic(_normalize(split, 0.0, 0.30));
+    final tailRecover = _easeOutCubic(_normalize(split, 0.28, 1.0));
+    final upperLength = _lerp(attachedLength, 5.0, tailRecover);
     final upperPath = _buildDripPath(
       anchorX: anchorX,
       baseY: anchorY,
-      shoulder: _lerp(fullShoulder, spec.shoulder * 0.34, tailRecover),
+      shoulder: _lerp(fullShoulder, spec.shoulder * 0.32, tailRecover),
       neck: _lerp(
         _lerp(fullNeck, spec.neck * 0.42, detachPhase),
         spec.neck * 0.22,
@@ -558,11 +559,8 @@ class DynamicIslandDripPainter extends CustomPainter {
       dropForm,
     );
     final separationY = anchorY + attachedLength;
-    final dropY = _lerp(
-      separationY + dropRadius * 0.34,
-      impactY,
-      _easeInQuart(split),
-    );
+    final dropFall = _lerp(split, _easeInQuart(split), 0.72);
+    final dropY = _lerp(separationY + dropRadius * 0.34, impactY, dropFall);
     _drawOrbAwareDrop(
       canvas,
       x: anchorX,
