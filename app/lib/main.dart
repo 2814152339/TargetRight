@@ -610,11 +610,12 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
   double _applyMagneticSnap(double offset, ScrollPosition position) {
     final nearest = (offset / _stepExtent).roundToDouble() * _stepExtent;
     final distance = (nearest - offset).abs();
-    if (distance > 30) {
+    if (distance > 96) {
       return offset;
     }
 
-    final strength = Curves.easeOutCubic.transform(1 - (distance / 30)) * 0.28;
+    final strength =
+        0.48 + Curves.easeOutCubic.transform(1 - (distance / 96)) * 0.52;
     final snapped = offset + (nearest - offset) * strength;
     return snapped.clamp(position.minScrollExtent, position.maxScrollExtent);
   }
@@ -725,7 +726,12 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                                   controller: _scrollController,
                                   physics: const NeverScrollableScrollPhysics(),
                                   child: SizedBox(
-                                    height: _cards.length * _stepExtent + 1,
+                                    // Add enough trailing extent so card 12 can
+                                    // still reach the center slot before stop.
+                                    height:
+                                        media.height +
+                                        (_cards.length - 1) * _stepExtent +
+                                        1,
                                   ),
                                 ),
                                 Positioned.fill(
@@ -775,12 +781,6 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                                       ],
                                     ),
                                   ),
-                                ),
-                                Positioned(
-                                  right: media.width * 0.010,
-                                  top: media.height * 0.070,
-                                  bottom: media.height * 0.085,
-                                  child: VisualScrollRail(progress: progress),
                                 ),
                               ],
                             );
