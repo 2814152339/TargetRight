@@ -784,6 +784,22 @@ class ReplicaCardData {
   final int titleLines;
 }
 
+class ReplicaTrackSlot {
+  const ReplicaTrackSlot({
+    required this.left,
+    required this.top,
+    required this.angle,
+    this.scale = 1,
+    this.opacity = 1,
+  });
+
+  final double left;
+  final double top;
+  final double angle;
+  final double scale;
+  final double opacity;
+}
+
 class PositionedReplicaCard extends StatelessWidget {
   const PositionedReplicaCard({
     super.key,
@@ -817,6 +833,29 @@ class PositionedReplicaCard extends StatelessWidget {
 }
 
 class FanReplicaCard extends StatelessWidget {
+  static const List<ReplicaTrackSlot> _track = <ReplicaTrackSlot>[
+    ReplicaTrackSlot(
+      left: -0.10,
+      top: 0.25,
+      angle: -0.56,
+      scale: 0.97,
+      opacity: 0.98,
+    ),
+    ReplicaTrackSlot(left: 0.26, top: 0.42, angle: 0.00, scale: 1.00),
+    ReplicaTrackSlot(left: 0.20, top: 0.56, angle: -0.22, scale: 1.00),
+    ReplicaTrackSlot(left: 0.09, top: 0.70, angle: -0.40, scale: 0.99),
+    ReplicaTrackSlot(left: -0.02, top: 0.86, angle: -0.58, scale: 0.98),
+    ReplicaTrackSlot(left: -0.12, top: 1.03, angle: -0.73, scale: 0.96),
+    ReplicaTrackSlot(left: -0.20, top: 1.20, angle: -0.86, scale: 0.94),
+    ReplicaTrackSlot(
+      left: -0.28,
+      top: 1.36,
+      angle: -0.98,
+      scale: 0.92,
+      opacity: 0.90,
+    ),
+  ];
+
   const FanReplicaCard({
     super.key,
     required this.item,
@@ -832,55 +871,64 @@ class FanReplicaCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final delta = itemIndex - activeIndex;
-    final absDelta = delta.abs();
+    final trackIndex = itemIndex - activeIndex + 1;
+    final lowerIndex = trackIndex.floor();
+    final upperIndex = trackIndex.ceil();
+    final t = (trackIndex - lowerIndex).clamp(0.0, 1.0);
 
-    final fanCenter = Offset(
-      screenSize.width * -0.25,
-      screenSize.height * 0.82,
-    );
-    final radius = screenSize.width * 1.06 + (item.width - 0.70) * 120;
-    final baseAngle = -0.92;
-    final stepAngle = 0.18;
-    final angle = (baseAngle + delta * stepAngle + item.angle * 0.12).clamp(
-      -1.16,
-      0.08,
-    );
-
+    final lowerSlot = _slotFor(lowerIndex);
+    final upperSlot = _slotFor(upperIndex);
     final width = screenSize.width * item.width;
     final height = screenSize.width * item.height;
-    final x = fanCenter.dx + math.cos(angle) * radius + (item.left - 0.18) * 54;
-    final y = fanCenter.dy + math.sin(angle) * radius + item.top * 0.012;
+    final left = _lerp(lowerSlot.left, upperSlot.left, t) * screenSize.width;
+    final top = _lerp(lowerSlot.top, upperSlot.top, t) * screenSize.height;
+    final angle = _lerp(lowerSlot.angle, upperSlot.angle, t);
+    final scale = _lerp(lowerSlot.scale, upperSlot.scale, t);
+    final baseOpacity = _lerp(lowerSlot.opacity, upperSlot.opacity, t);
 
-    final tangentRotation = angle + math.pi / 2 - 0.10 + item.angle * 0.18;
-    final focus = (1 - (absDelta / 3.2)).clamp(0.0, 1.0);
-    final scale = 0.91 + focus * 0.08;
-    final opacity = 0.48 + focus * 0.52;
-    final inwardShift = (1 - focus) * -8;
+    var opacity = baseOpacity;
+    if (trackIndex < 0) {
+      opacity *= (1 + trackIndex).clamp(0.0, 1.0);
+    } else if (trackIndex > _track.length - 1) {
+      opacity *= (_track.length - trackIndex).clamp(0.0, 1.0);
+    }
+
+    if (opacity <= 0.001) {
+      return const SizedBox.shrink();
+    }
 
     return Positioned(
-      left: x,
-      top: y,
+      left: left,
+      top: top,
       child: Transform.translate(
         offset: Offset(-width * 0.15, -height / 2),
         child: Transform.rotate(
-          angle: tangentRotation,
+          angle: angle,
           alignment: Alignment.centerLeft,
-          child: Transform.translate(
-            offset: Offset(inwardShift, 0),
-            child: Transform.scale(
-              scale: scale,
-              alignment: Alignment.centerLeft,
-              child: Opacity(
-                opacity: opacity,
-                child: ReplicaCard(item: item, width: width, height: height),
-              ),
+          child: Transform.scale(
+            scale: scale,
+            alignment: Alignment.centerLeft,
+            child: Opacity(
+              opacity: opacity,
+              child: ReplicaCard(item: item, width: width, height: height),
             ),
           ),
         ),
       ),
     );
   }
+
+  static ReplicaTrackSlot _slotFor(int index) {
+    if (index <= 0) {
+      return _track.first;
+    }
+    if (index >= _track.length - 1) {
+      return _track.last;
+    }
+    return _track[index];
+  }
+
+  static double _lerp(double a, double b, double t) => a + (b - a) * t;
 }
 
 class ReplicaCard extends StatelessWidget {
