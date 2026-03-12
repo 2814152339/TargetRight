@@ -533,13 +533,14 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
   final ScrollController _scrollController = ScrollController();
   bool _isSnapping = false;
 
-  void _maybeSnap(double velocity) {
+  void _maybeSnap(ScrollEndNotification notification) {
     if (!_scrollController.hasClients || _isSnapping) {
       return;
     }
 
     final position = _scrollController.position;
     final current = position.pixels;
+    final velocity = notification.dragDetails?.primaryVelocity ?? 0.0;
     var index = (current / _stepExtent).round().clamp(0, _cards.length - 1);
 
     if (velocity < -120) {
@@ -560,7 +561,7 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
     _scrollController
         .animateTo(
           target,
-          duration: const Duration(milliseconds: 380),
+          duration: const Duration(milliseconds: 420),
           curve: Curves.easeOutCubic,
         )
         .whenComplete(() {
@@ -599,93 +600,109 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                   child: ColoredBox(
                     color: const Color(0xFFE7E7E7),
                     child: SafeArea(
-                      child: Stack(
-                        children: <Widget>[
-                          IgnorePointer(
-                            child: Opacity(
-                              opacity: 0,
-                              child: SingleChildScrollView(
-                                controller: _scrollController,
-                                physics: const NeverScrollableScrollPhysics(),
-                                child: SizedBox(
-                                  height: media.height + maxExtent,
+                      child: NotificationListener<ScrollEndNotification>(
+                        onNotification: (notification) {
+                          _maybeSnap(notification);
+                          return false;
+                        },
+                        child: Stack(
+                          children: <Widget>[
+                            IgnorePointer(
+                              child: Opacity(
+                                opacity: 0,
+                                child: SingleChildScrollView(
+                                  controller: _scrollController,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  child: SizedBox(
+                                    height: media.height + maxExtent,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          AnimatedBuilder(
-                            animation: _scrollController,
-                            builder: (context, _) {
-                              final offset = _scrollController.hasClients
-                                  ? _scrollController.offset
-                                  : 0.0;
-                              final fractionalIndex = (offset / _stepExtent)
-                                  .clamp(0.0, _cards.length - 1.0);
-                              final progress = (offset / maxExtent).clamp(
-                                0.0,
-                                1.0,
-                              );
+                            AnimatedBuilder(
+                              animation: _scrollController,
+                              builder: (context, _) {
+                                final offset = _scrollController.hasClients
+                                    ? _scrollController.offset
+                                    : 0.0;
+                                final fractionalIndex = (offset / _stepExtent)
+                                    .clamp(0.0, _cards.length - 1.0);
+                                final progress = (offset / maxExtent).clamp(
+                                  0.0,
+                                  1.0,
+                                );
 
-                              return Stack(
-                                children: <Widget>[
-                                  Positioned(
-                                    left: media.width * 0.050,
-                                    top: media.height * 0.435,
-                                    child: LeftSegmentIndicator(
-                                      progress: progress,
-                                    ),
-                                  ),
-                                  Positioned.fill(
-                                    child: GestureDetector(
-                                      behavior: HitTestBehavior.opaque,
-                                      onVerticalDragUpdate: (details) {
-                                        if (!_scrollController.hasClients) {
-                                          return;
-                                        }
-                                        final next =
-                                            (_scrollController.offset -
-                                                    details.delta.dy)
-                                                .clamp(
-                                                  0.0,
-                                                  _scrollController
-                                                      .position
-                                                      .maxScrollExtent,
-                                                );
-                                        _scrollController.jumpTo(next);
-                                      },
-                                      onVerticalDragEnd: (details) {
-                                        _maybeSnap(
-                                          details.primaryVelocity ?? 0.0,
-                                        );
-                                      },
-                                      child: Stack(
-                                        children: <Widget>[
-                                          for (
-                                            var i = 0;
-                                            i < _cards.length;
-                                            i++
-                                          )
-                                            FanReplicaCard(
-                                              item: _cards[i],
-                                              itemIndex: i,
-                                              activeIndex: fractionalIndex,
-                                              screenSize: media,
-                                            ),
-                                        ],
+                                return Stack(
+                                  children: <Widget>[
+                                    Positioned(
+                                      left: media.width * 0.050,
+                                      top: media.height * 0.435,
+                                      child: LeftSegmentIndicator(
+                                        progress: progress,
                                       ),
                                     ),
-                                  ),
-                                  Positioned(
-                                    right: media.width * 0.010,
-                                    top: media.height * 0.095,
-                                    bottom: media.height * 0.095,
-                                    child: VisualScrollRail(progress: progress),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                        ],
+                                    Positioned.fill(
+                                      child: GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onVerticalDragUpdate: (details) {
+                                          if (!_scrollController.hasClients) {
+                                            return;
+                                          }
+                                          final next =
+                                              (_scrollController.offset -
+                                                      details.delta.dy)
+                                                  .clamp(
+                                                    0.0,
+                                                    _scrollController
+                                                        .position
+                                                        .maxScrollExtent,
+                                                  );
+                                          _scrollController.jumpTo(next);
+                                        },
+                                        onVerticalDragEnd: (details) {
+                                          final fakeNotification =
+                                              ScrollEndNotification(
+                                                metrics:
+                                                    _scrollController.position,
+                                                context: context,
+                                                dragDetails: DragEndDetails(
+                                                  primaryVelocity:
+                                                      details.primaryVelocity,
+                                                ),
+                                              );
+                                          _maybeSnap(fakeNotification);
+                                        },
+                                        child: Stack(
+                                          children: <Widget>[
+                                            for (
+                                              var i = 0;
+                                              i < _cards.length;
+                                              i++
+                                            )
+                                              FanReplicaCard(
+                                                item: _cards[i],
+                                                itemIndex: i,
+                                                activeIndex: fractionalIndex,
+                                                screenSize: media,
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      right: media.width * 0.010,
+                                      top: media.height * 0.095,
+                                      bottom: media.height * 0.095,
+                                      child: VisualScrollRail(
+                                        progress: progress,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -741,42 +758,42 @@ class FanReplicaCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseRadius = screenSize.width * 1.50;
-    final center = Offset(screenSize.width * -0.16, screenSize.height * 0.455);
     final delta = itemIndex - activeIndex;
     final absDelta = delta.abs();
 
-    final steppedAngle = delta * 0.158;
-    final edgeCompression = absDelta > 1.0 ? (absDelta - 1.0) * 0.024 : 0.0;
-    final lowerTailRelax = delta > 2.5 ? (delta - 2.5) * 0.010 : 0.0;
-    final upperTailTighten = delta < -2.0 ? (-delta - 2.0) * 0.008 : 0.0;
+    final fanCenter = Offset(
+      screenSize.width * -1.02,
+      screenSize.height * 1.03,
+    );
+    final baseRadius = screenSize.width * 1.34 + item.radiusBias;
+    final baseAngle = -0.93;
+    final stepAngle = 0.122;
+    final edgeTighten = absDelta > 1.8 ? (absDelta - 1.8) * 0.010 : 0.0;
     final angle =
-        (0.012 +
-                steppedAngle -
-                delta.sign * edgeCompression +
-                lowerTailRelax -
-                upperTailTighten +
+        (baseAngle +
+                delta * stepAngle -
+                delta.sign * edgeTighten +
                 item.angleBias)
-            .clamp(-0.82, 1.03);
-
+            .clamp(-1.22, -0.20);
     final cardWidth = screenSize.width * 0.705;
     final cardHeight = screenSize.width * 0.104;
-    final radius = baseRadius + item.radiusBias;
-    final x = center.dx + math.cos(angle) * radius + item.xBias;
-    final y = center.dy + math.sin(angle) * radius + item.yBias;
-    final tangentRotation = angle + math.pi / 2 - 0.155 + item.angleBias * 0.28;
-    final focus = (1 - (absDelta / 2.65)).clamp(0.0, 1.0);
-    final scale = 0.875 + focus * 0.135 + item.scaleBias;
-    final opacity = 0.40 + focus * 0.60;
-    final blur = 5.5 + focus * 10.5;
-    final spread = 0.8 + focus * 2.5;
-    final inwardShift = (1 - focus) * -22;
+    final arcX = fanCenter.dx + math.cos(angle) * baseRadius;
+    final arcY = fanCenter.dy + math.sin(angle) * baseRadius;
+    final x = arcX + item.xBias;
+    final y = arcY + item.yBias;
+    final tangentRotation = angle + math.pi / 2 - 0.06 + item.angleBias * 0.22;
+    final focus = (1 - (absDelta / 2.85)).clamp(0.0, 1.0);
+    final scale = 0.89 + focus * 0.12 + item.scaleBias;
+    final opacity = 0.42 + focus * 0.58;
+    final blur = 5.0 + focus * 10.0;
+    final spread = 0.8 + focus * 2.4;
+    final inwardShift = (1 - focus) * -14;
 
     return Positioned(
       left: x,
       top: y,
       child: Transform.translate(
-        offset: Offset(-cardWidth * 0.08, -cardHeight / 2),
+        offset: Offset(-cardWidth * 0.18, -cardHeight / 2),
         child: Transform.rotate(
           angle: tangentRotation,
           alignment: Alignment.centerLeft,
