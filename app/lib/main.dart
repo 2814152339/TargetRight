@@ -40,11 +40,16 @@ class DynamicIslandDripPage extends StatefulWidget {
 }
 
 class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
+  static const double _panelRevealDistance = 106;
   late final AnimationController _controller;
+  late final AnimationController _panelController;
   late final List<double> _lastPhases;
   StreamSubscription<AccelerometerEvent>? _accelerometerSub;
   StreamSubscription<UserAccelerometerEvent>? _userAccelerometerSub;
+  bool _isTrackingPanelDrag = false;
+  double _panelDragStartX = 0;
+  double _panelDragStartValue = 0;
   int _cycleIndex = 0;
   double _lastValue = 0;
   double _orbFill = 0.24;
@@ -61,6 +66,10 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     _lastPhases = List<double>.filled(
       DynamicIslandDripPainter._drips.length,
       0,
+    );
+    _panelController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
     );
     _startMotionTracking();
     _controller =
@@ -114,6 +123,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   void dispose() {
     _accelerometerSub?.cancel();
     _userAccelerometerSub?.cancel();
+    _panelController.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -125,23 +135,85 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
 
     return Scaffold(
       backgroundColor: bgColor,
-      body: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, _) {
-          return CustomPaint(
-            painter: DynamicIslandDripPainter(
-              t: _controller.value,
-              safeTop: safeTop,
-              activeStretchIndex: _stretchIndexForCycle(_cycleIndex),
-              previousStretchIndex: _stretchIndexForCycle(_cycleIndex - 1),
-              orbFill: _orbFill,
-              liquidTilt: _liquidTilt,
-              sloshing: _sloshing,
-              color: Colors.black,
-            ),
-            child: const SizedBox.expand(),
-          );
-        },
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragStart: _handlePanelDragStart,
+        onHorizontalDragUpdate: _handlePanelDragUpdate,
+        onHorizontalDragEnd: _handlePanelDragEnd,
+        onHorizontalDragCancel: () => _isTrackingPanelDrag = false,
+        child: AnimatedBuilder(
+          animation: Listenable.merge(<Listenable>[
+            _controller,
+            _panelController,
+          ]),
+          builder: (context, _) {
+            final panelProgress = Curves.easeOutCubic.transform(
+              _panelController.value,
+            );
+            final sceneOffsetX = panelProgress * 22;
+            final sceneOpacity = 1 - panelProgress;
+            final sceneScale = 1 - panelProgress * 0.035;
+
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                return Stack(
+                  children: <Widget>[
+                    _SlideOutReplicaPanel(progress: panelProgress),
+                    IgnorePointer(
+                      ignoring: panelProgress > 0.08,
+                      child: Opacity(
+                        opacity: sceneOpacity.clamp(0.0, 1.0),
+                        child: Transform.translate(
+                          offset: Offset(sceneOffsetX, 0),
+                          child: Transform.scale(
+                            scale: sceneScale,
+                            alignment: Alignment.center,
+                            child: Stack(
+                              children: <Widget>[
+                                CustomPaint(
+                                  painter: DynamicIslandDripPainter(
+                                    t: _controller.value,
+                                    safeTop: safeTop,
+                                    activeStretchIndex: _stretchIndexForCycle(
+                                      _cycleIndex,
+                                    ),
+                                    previousStretchIndex: _stretchIndexForCycle(
+                                      _cycleIndex - 1,
+                                    ),
+                                    orbFill: _orbFill,
+                                    liquidTilt: _liquidTilt,
+                                    sloshing: _sloshing,
+                                    color: Colors.black,
+                                  ),
+                                  child: const SizedBox.expand(),
+                                ),
+                                Positioned(
+                                  left: 16,
+                                  top: safeTop + 18,
+                                  child: _ProfileEntry(
+                                    nickname: '用户昵称',
+                                    onTap: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute<void>(
+                                          builder: (context) =>
+                                              const ProfilePlaceholderPage(),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -212,6 +284,788 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
 
     final sloshDamping = math.pow(0.92, dt * 60).toDouble();
     _sloshing *= sloshDamping;
+  }
+
+  void _handlePanelDragStart(DragStartDetails details) {
+    final isFromLeftEdge = details.localPosition.dx <= 30;
+    final canResumeOpenPanel = _panelController.value > 0.02;
+    _isTrackingPanelDrag = isFromLeftEdge || canResumeOpenPanel;
+    if (!_isTrackingPanelDrag) {
+      return;
+    }
+    _panelDragStartX = details.globalPosition.dx;
+    _panelDragStartValue = _panelController.value;
+  }
+
+  void _handlePanelDragUpdate(DragUpdateDetails details) {
+    if (!_isTrackingPanelDrag) {
+      return;
+    }
+
+    final deltaX = details.globalPosition.dx - _panelDragStartX;
+    final nextValue = (_panelDragStartValue + deltaX / _panelRevealDistance)
+        .clamp(0.0, 1.0);
+    _panelController.value = nextValue;
+  }
+
+  void _handlePanelDragEnd(DragEndDetails details) {
+    if (!_isTrackingPanelDrag) {
+      return;
+    }
+    _isTrackingPanelDrag = false;
+
+    final velocity = details.primaryVelocity ?? 0;
+    final target = velocity > 220
+        ? 1.0
+        : velocity < -220
+        ? 0.0
+        : (_panelController.value >= 0.52 ? 1.0 : 0.0);
+
+    _panelController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+    );
+  }
+}
+
+class _ProfileEntry extends StatelessWidget {
+  const _ProfileEntry({required this.nickname, required this.onTap});
+
+  final String nickname;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(40),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.black, width: 2),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '你好,$nickname',
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.black,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ProfilePlaceholderPage extends StatelessWidget {
+  const ProfilePlaceholderPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0,
+        title: const Text('我的'),
+      ),
+      body: const Center(
+        child: Text(
+          '我的页面待设计',
+          style: TextStyle(fontSize: 18, color: Colors.black),
+        ),
+      ),
+    );
+  }
+}
+
+class _SlideOutReplicaPanel extends StatefulWidget {
+  const _SlideOutReplicaPanel({required this.progress});
+
+  final double progress;
+
+  @override
+  State<_SlideOutReplicaPanel> createState() => _SlideOutReplicaPanelState();
+}
+
+class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
+  static const List<ReplicaCardData> _cards = <ReplicaCardData>[
+    ReplicaCardData(
+      index: 1,
+      title: 'mobile',
+      color: Color(0xFFFF0008),
+      slotColor: Color(0xFF8D0000),
+      angle: 0.0,
+      left: 0.270,
+      top: 0,
+      width: 0.700,
+      height: 0.100,
+      slotWidthFactor: 0.305,
+      slotInsetRight: 0.022,
+      slotInsetVertical: 0.080,
+      titleDx: 0.0,
+      titleDy: -1.0,
+    ),
+    ReplicaCardData(
+      index: 2,
+      title: 'auxiliary',
+      color: Color(0xFFEF7A00),
+      slotColor: Color(0xFF7A3500),
+      angle: -0.194,
+      left: 0.215,
+      top: 108,
+      width: 0.705,
+      height: 0.100,
+      slotWidthFactor: 0.305,
+      slotInsetRight: 0.022,
+      slotInsetVertical: 0.080,
+      titleDx: -3.0,
+      titleDy: 1.0,
+    ),
+    ReplicaCardData(
+      index: 3,
+      title: 'cross-\nplatform',
+      color: Color(0xFFE8EE00),
+      slotColor: Color(0xFF6A6700),
+      angle: -0.535,
+      left: 0.105,
+      top: 224,
+      width: 0.705,
+      height: 0.103,
+      slotWidthFactor: 0.305,
+      slotInsetRight: 0.024,
+      slotInsetVertical: 0.082,
+      titleDx: -10.0,
+      titleDy: -1.0,
+      titleLines: 2,
+    ),
+    ReplicaCardData(
+      index: 4,
+      title: 'back-end',
+      color: Color(0xFF68F40D),
+      slotColor: Color(0xFF2A6500),
+      angle: -0.402,
+      left: -0.010,
+      top: 386,
+      width: 0.705,
+      height: 0.103,
+      slotWidthFactor: 0.300,
+      slotInsetRight: 0.022,
+      slotInsetVertical: 0.082,
+      titleDx: -1.0,
+      titleDy: -1.0,
+    ),
+    ReplicaCardData(
+      index: 5,
+      title: 'online',
+      color: Color(0xFF18FF00),
+      slotColor: Color(0xFF006B00),
+      angle: -0.126,
+      left: 0.315,
+      top: 538,
+      width: 0.690,
+      height: 0.101,
+      slotWidthFactor: 0.297,
+      slotInsetRight: 0.022,
+      slotInsetVertical: 0.082,
+      titleDx: 0.0,
+      titleDy: 0.0,
+    ),
+    ReplicaCardData(
+      index: 6,
+      title: 'primary',
+      color: Color(0xFF18ED7D),
+      slotColor: Color(0xFF006D45),
+      angle: -0.118,
+      left: 0.315,
+      top: 690,
+      width: 0.690,
+      height: 0.101,
+      slotWidthFactor: 0.297,
+      slotInsetRight: 0.022,
+      slotInsetVertical: 0.082,
+      titleDx: 1.0,
+      titleDy: 0.0,
+    ),
+    ReplicaCardData(
+      index: 7,
+      title: 'cross-\nplatform',
+      color: Color(0xFF24DDE5),
+      slotColor: Color(0xFF006D74),
+      angle: -0.290,
+      left: 0.260,
+      top: 845,
+      width: 0.700,
+      height: 0.103,
+      slotWidthFactor: 0.305,
+      slotInsetRight: 0.022,
+      slotInsetVertical: 0.082,
+      titleDx: -5.0,
+      titleDy: -1.0,
+      titleLines: 2,
+    ),
+    ReplicaCardData(
+      index: 8,
+      title: 'cross-\nplatform',
+      color: Color(0xFF1F7BF4),
+      slotColor: Color(0xFF003A86),
+      angle: -0.353,
+      left: 0.035,
+      top: 997,
+      width: 0.700,
+      height: 0.103,
+      slotWidthFactor: 0.305,
+      slotInsetRight: 0.022,
+      slotInsetVertical: 0.082,
+      titleDx: -8.0,
+      titleDy: 2.0,
+      titleLines: 2,
+    ),
+    ReplicaCardData(
+      index: 9,
+      title: 'redundant',
+      color: Color(0xFF1713FF),
+      slotColor: Color(0xFF010076),
+      angle: -0.452,
+      left: 0.090,
+      top: 1158,
+      width: 0.705,
+      height: 0.103,
+      slotWidthFactor: 0.305,
+      slotInsetRight: 0.022,
+      slotInsetVertical: 0.082,
+      titleDx: -1.0,
+      titleDy: 3.0,
+    ),
+    ReplicaCardData(
+      index: 10,
+      title: 'design',
+      color: Color(0xFFA62CF8),
+      slotColor: Color(0xFF46007A),
+      angle: -0.435,
+      left: -0.020,
+      top: 1318,
+      width: 0.705,
+      height: 0.103,
+      slotWidthFactor: 0.305,
+      slotInsetRight: 0.022,
+      slotInsetVertical: 0.082,
+      titleDx: -1.0,
+      titleDy: 3.0,
+    ),
+  ];
+
+  static const double _designCanvasHeight = 1500.0;
+  static const double _designTopGap = 250.0;
+
+  final ScrollController _scrollController = ScrollController();
+  late final List<double> _snapOffsets;
+  bool _isSnapping = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _snapOffsets = _buildSnapOffsets();
+  }
+
+  List<double> _buildSnapOffsets() {
+    const anchorY = 290.0;
+    return _cards
+        .map(
+          (e) => (_designTopGap + e.top - anchorY).clamp(
+            0.0,
+            _designTopGap + _designCanvasHeight,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  void _maybeSnap(ScrollEndNotification notification) {
+    if (!_scrollController.hasClients || _isSnapping) {
+      return;
+    }
+
+    final position = _scrollController.position;
+    if (!position.hasPixels) {
+      return;
+    }
+
+    final current = position.pixels;
+    final velocity = notification.dragDetails?.primaryVelocity ?? 0.0;
+
+    var nearestIndex = 0;
+    var nearestDistance = double.infinity;
+    for (var i = 0; i < _snapOffsets.length; i++) {
+      final distance = (current - _snapOffsets[i]).abs();
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = i;
+      }
+    }
+
+    if (velocity < -120) {
+      nearestIndex = math.max(0, nearestIndex - 1);
+    } else if (velocity > 120) {
+      nearestIndex = math.min(_snapOffsets.length - 1, nearestIndex + 1);
+    } else {
+      final threshold = nearestIndex < _snapOffsets.length - 1
+          ? (_snapOffsets[math.min(_snapOffsets.length - 1, nearestIndex + 1)] -
+                        _snapOffsets[nearestIndex])
+                    .abs() *
+                0.34
+          : 42.0;
+      if (nearestDistance >= 2.0 && nearestDistance <= threshold) {
+        return;
+      }
+    }
+
+    final target = _snapOffsets[nearestIndex].clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    if ((target - current).abs() < 1.0) {
+      return;
+    }
+
+    _isSnapping = true;
+    _scrollController
+        .animateTo(
+          target,
+          duration: const Duration(milliseconds: 380),
+          curve: Curves.easeOutCubic,
+        )
+        .whenComplete(() {
+          _isSnapping = false;
+        });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.sizeOf(context);
+    final reveal = math.max(0.001, widget.progress);
+    final overlayOpacity = Curves.easeOutCubic.transform(widget.progress);
+    final entryOffset = -42 * (1 - overlayOpacity);
+
+    return Positioned.fill(
+      child: IgnorePointer(
+        ignoring: widget.progress < 0.06,
+        child: Opacity(
+          opacity: overlayOpacity,
+          child: ClipRect(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              widthFactor: reveal,
+              child: Transform.translate(
+                offset: Offset(entryOffset, 0),
+                child: SizedBox(
+                  width: media.width,
+                  height: media.height,
+                  child: ColoredBox(
+                    color: const Color(0xFFE7E7E7),
+                    child: SafeArea(
+                      child: NotificationListener<ScrollEndNotification>(
+                        onNotification: (notification) {
+                          _maybeSnap(notification);
+                          return false;
+                        },
+                        child: AnimatedBuilder(
+                          animation: _scrollController,
+                          builder: (context, _) {
+                            final offset = _scrollController.hasClients
+                                ? _scrollController.offset
+                                : 0.0;
+                            final maxExtent = _scrollController.hasClients
+                                ? math.max(
+                                    1.0,
+                                    _scrollController.position.maxScrollExtent,
+                                  )
+                                : 1.0;
+                            final steppedProgress = _snapOffsets.isEmpty
+                                ? 0.0
+                                : ((offset / math.max(1.0, maxExtent)) *
+                                              (_cards.length - 1))
+                                          .round() /
+                                      math.max(1, _cards.length - 1);
+                            final progress = steppedProgress.clamp(0.0, 1.0);
+
+                            return Stack(
+                              children: <Widget>[
+                                Positioned(
+                                  left: media.width * 0.050,
+                                  top: media.height * 0.435,
+                                  child: LeftSegmentIndicator(
+                                    progress: progress,
+                                  ),
+                                ),
+                                NotificationListener<ScrollNotification>(
+                                  onNotification: (_) => true,
+                                  child: SingleChildScrollView(
+                                    controller: _scrollController,
+                                    physics: const _ReplicaScrollPhysics(
+                                      parent: BouncingScrollPhysics(
+                                        parent: AlwaysScrollableScrollPhysics(),
+                                      ),
+                                    ),
+                                    child: SizedBox(
+                                      height:
+                                          _designTopGap +
+                                          _designCanvasHeight +
+                                          media.height * 0.24,
+                                      child: Stack(
+                                        children: <Widget>[
+                                          for (final item in _cards)
+                                            PositionedReplicaCard(
+                                              item: item,
+                                              screenWidth: media.width,
+                                              designTopGap: _designTopGap,
+                                              scrollOffset: offset,
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  right: media.width * 0.010,
+                                  top: media.height * 0.095,
+                                  bottom: media.height * 0.095,
+                                  child: VisualScrollRail(progress: progress),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ReplicaCardData {
+  const ReplicaCardData({
+    required this.index,
+    required this.title,
+    required this.color,
+    required this.slotColor,
+    required this.angle,
+    required this.left,
+    required this.top,
+    required this.width,
+    required this.height,
+    required this.slotWidthFactor,
+    required this.slotInsetRight,
+    required this.slotInsetVertical,
+    required this.titleDx,
+    required this.titleDy,
+    this.titleLines = 1,
+  });
+
+  final int index;
+  final String title;
+  final Color color;
+  final Color slotColor;
+  final double angle;
+  final double left;
+  final double top;
+  final double width;
+  final double height;
+  final double slotWidthFactor;
+  final double slotInsetRight;
+  final double slotInsetVertical;
+  final double titleDx;
+  final double titleDy;
+  final int titleLines;
+}
+
+class PositionedReplicaCard extends StatelessWidget {
+  const PositionedReplicaCard({
+    super.key,
+    required this.item,
+    required this.screenWidth,
+    required this.designTopGap,
+    required this.scrollOffset,
+  });
+
+  final ReplicaCardData item;
+  final double screenWidth;
+  final double designTopGap;
+  final double scrollOffset;
+
+  @override
+  Widget build(BuildContext context) {
+    final width = screenWidth * item.width;
+    final height = screenWidth * item.height;
+    final parallax = (scrollOffset * 0.015).clamp(-12.0, 12.0);
+    final top = designTopGap + item.top - parallax;
+
+    return Positioned(
+      left: screenWidth * item.left,
+      top: top,
+      child: Transform.rotate(
+        angle: item.angle,
+        child: ReplicaCard(item: item, width: width, height: height),
+      ),
+    );
+  }
+}
+
+class ReplicaCard extends StatelessWidget {
+  const ReplicaCard({
+    super.key,
+    required this.item,
+    required this.width,
+    required this.height,
+  });
+
+  final ReplicaCardData item;
+  final double width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = height * 0.23;
+    final slotInsetRight = width * item.slotInsetRight;
+    final slotInsetVertical = height * item.slotInsetVertical;
+    final slotWidth = width * item.slotWidthFactor;
+    final leftPadding = width * 0.045;
+    final bigNumberWidth = width * 0.145;
+    final titleFont = height * 0.255;
+    final numberFont = height * 0.46;
+
+    return SizedBox(
+      width: width,
+      height: height,
+      child: Stack(
+        children: <Widget>[
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                color: item.color,
+                borderRadius: BorderRadius.circular(radius),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: item.color.withValues(alpha: 0.58),
+                    blurRadius: 5,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 0),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            right: slotInsetRight,
+            top: slotInsetVertical,
+            bottom: slotInsetVertical,
+            child: Container(
+              width: slotWidth,
+              decoration: BoxDecoration(
+                color: item.slotColor,
+                borderRadius: BorderRadius.circular(height * 0.20),
+              ),
+            ),
+          ),
+          Positioned(
+            left: leftPadding,
+            top: 0,
+            bottom: 0,
+            right: slotWidth + slotInsetRight + width * 0.055,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: <Widget>[
+                SizedBox(
+                  width: bigNumberWidth,
+                  child: Transform.translate(
+                    offset: const Offset(-1.5, 1.0),
+                    child: Text(
+                      '${item.index}',
+                      style: TextStyle(
+                        fontSize: numberFont,
+                        height: 0.86,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFF111111),
+                        letterSpacing: -2.8,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: width * 0.025),
+                Expanded(
+                  child: Transform.translate(
+                    offset: Offset(item.titleDx, item.titleDy),
+                    child: Text(
+                      item.title,
+                      maxLines: item.titleLines,
+                      style: TextStyle(
+                        fontSize: titleFont,
+                        height: item.titleLines > 1 ? 0.92 : 0.88,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF161616),
+                        letterSpacing: -1.3,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class LeftSegmentIndicator extends StatelessWidget {
+  const LeftSegmentIndicator({super.key, required this.progress});
+
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 26,
+      height: 120,
+      child: CustomPaint(painter: LeftSegmentIndicatorPainter(progress)),
+    );
+  }
+}
+
+class LeftSegmentIndicatorPainter extends CustomPainter {
+  LeftSegmentIndicatorPainter(this.progress);
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final inactive = Paint()
+      ..color = const Color(0xFFAEAEAE)
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round;
+
+    final active = Paint()
+      ..color = const Color(0xFF111111)
+      ..strokeWidth = 2.6
+      ..strokeCap = StrokeCap.round;
+
+    const count = 10;
+    const startX = 1.5;
+    const endX = 21.5;
+    const gap = 8.8;
+    const startY = 9.0;
+
+    for (var i = 0; i < count; i++) {
+      final y = startY + i * gap;
+      canvas.drawLine(Offset(startX, y), Offset(endX, y), inactive);
+    }
+
+    final activeIndex = (progress * (count - 1)).round().clamp(0, count - 1);
+    final y = startY + activeIndex * gap;
+    canvas.drawLine(Offset(startX, y), Offset(endX, y), active);
+  }
+
+  @override
+  bool shouldRepaint(covariant LeftSegmentIndicatorPainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
+}
+
+class _ReplicaScrollPhysics extends ScrollPhysics {
+  const _ReplicaScrollPhysics({super.parent});
+
+  @override
+  _ReplicaScrollPhysics applyTo(ScrollPhysics? ancestor) {
+    return _ReplicaScrollPhysics(parent: buildParent(ancestor));
+  }
+
+  @override
+  double applyPhysicsToUserOffset(ScrollMetrics position, double offset) {
+    final damped = offset * 0.88;
+    return super.applyPhysicsToUserOffset(position, damped);
+  }
+
+  @override
+  Simulation? createBallisticSimulation(
+    ScrollMetrics position,
+    double velocity,
+  ) {
+    if (velocity.abs() < 70) {
+      return super.createBallisticSimulation(position, 0);
+    }
+    return super.createBallisticSimulation(position, velocity * 0.92);
+  }
+}
+
+class VisualScrollRail extends StatelessWidget {
+  const VisualScrollRail({super.key, required this.progress});
+
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 4,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final thumbHeight = constraints.maxHeight * 0.22;
+          final maxTravel = constraints.maxHeight - thumbHeight;
+          final thumbTop = maxTravel * progress;
+
+          return Stack(
+            children: <Widget>[
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDFDFDF),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                top: thumbTop,
+                child: Container(
+                  height: thumbHeight,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.48),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 }
 
@@ -522,6 +1376,7 @@ class DynamicIslandDripPainter extends CustomPainter {
   }) {
     final gather = _normalize(phase, 0.00, 0.18);
     const splitStart = 0.68;
+    const connectedEnd = 0.24;
     final stretch = _normalize(phase, 0.18, splitStart);
     final split = _normalize(phase, splitStart, 1.0);
     final impactY =
@@ -548,6 +1403,8 @@ class DynamicIslandDripPainter extends CustomPainter {
       spec.tipRadius * 1.06,
       _easeOutCubic(_normalize(phase, 0.22, splitStart)),
     );
+    final releaseLength = attachedLength + spec.tipRadius * 0.76;
+    final releaseTipRadius = spec.tipRadius * 1.14;
 
     if (phase < splitStart) {
       final length = phase < 0.18
@@ -584,21 +1441,51 @@ class DynamicIslandDripPainter extends CustomPainter {
       return;
     }
 
-    final detachPhase = _easeOutCubic(_normalize(split, 0.0, 0.30));
-    final tailRecover = _easeOutCubic(_normalize(split, 0.22, 0.46));
-    final upperLength = _lerp(attachedLength, 5.0, tailRecover);
+    if (split < connectedEnd) {
+      final connected = _easeInOutCubic(_normalize(split, 0.0, connectedEnd));
+      final connectedLength = _lerp(attachedLength, releaseLength, connected);
+      final connectedPath = _buildDripPath(
+        anchorX: anchorX,
+        baseY: anchorY,
+        shoulder: _lerp(fullShoulder, spec.shoulder * 0.92, connected),
+        neck: _lerp(fullNeck, spec.neck * 0.20, connected),
+        length: connectedLength,
+        tipRadius: _lerp(
+          attachedTipRadius,
+          releaseTipRadius,
+          _easeOutCubic(connected),
+        ),
+      );
+
+      canvas.drawPath(connectedPath.shift(const Offset(0, 1.15)), shadowPaint);
+      canvas.drawPath(
+        connectedPath,
+        _gradientLiquidPaint(
+          connectedPath.getBounds(),
+          bottomY: anchorY + connectedLength + releaseTipRadius,
+          orbCenter: orbCenter,
+          orbRadius: orbRadius,
+        ),
+      );
+      return;
+    }
+
+    final releasedSplit = _normalize(split, connectedEnd, 1.0);
+    final detachPhase = _easeOutCubic(_normalize(releasedSplit, 0.0, 0.24));
+    final tailRecover = _easeOutCubic(_normalize(releasedSplit, 0.06, 0.26));
+    final upperLength = _lerp(releaseLength, 5.0, tailRecover);
     final upperPath = _buildDripPath(
       anchorX: anchorX,
       baseY: anchorY,
       shoulder: _lerp(fullShoulder, spec.shoulder * 0.32, tailRecover),
       neck: _lerp(
-        _lerp(fullNeck, spec.neck * 0.42, detachPhase),
-        spec.neck * 0.22,
+        _lerp(spec.neck * 0.20, spec.neck * 0.14, detachPhase),
+        spec.neck * 0.08,
         tailRecover,
       ),
       length: upperLength,
       tipRadius: _lerp(
-        _lerp(attachedTipRadius, attachedTipRadius * 0.54, detachPhase),
+        _lerp(spec.tipRadius * 0.34, spec.tipRadius * 0.18, detachPhase),
         spec.tipRadius * 0.08,
         tailRecover,
       ),
@@ -614,15 +1501,15 @@ class DynamicIslandDripPainter extends CustomPainter {
       ),
     );
 
-    final dropForm = _easeOutCubic(_normalize(split, 0.0, 0.32));
+    final dropForm = _easeOutCubic(_normalize(releasedSplit, 0.0, 0.20));
     final dropRadius = _lerp(
-      spec.tipRadius * 0.24,
+      releaseTipRadius * 0.96,
       spec.tipRadius * 1.10,
       dropForm,
     );
-    final separationY = anchorY + attachedLength;
-    final dropFall = _lerp(split, _easeInQuart(split), 0.72);
-    final dropY = _lerp(separationY + dropRadius * 0.34, impactY, dropFall);
+    final separationY = anchorY + releaseLength;
+    final dropFall = _lerp(releasedSplit, _easeInQuart(releasedSplit), 0.72);
+    final dropY = _lerp(separationY + dropRadius * 0.06, impactY, dropFall);
     _drawOrbAwareDrop(
       canvas,
       x: anchorX,

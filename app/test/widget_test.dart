@@ -10,6 +10,6 @@ void main() {
     await tester.pumpWidget(const DynamicIslandDripApp());
 
     expect(find.byType(DynamicIslandDripPage), findsOneWidget);
-    expect(find.byType(CustomPaint), findsOneWidget);
+    expect(find.byType(CustomPaint), findsWidgets);
   });
 }
