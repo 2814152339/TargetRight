@@ -267,16 +267,7 @@ class DynamicIslandDripPainter extends CustomPainter {
       canvas,
       center: orbCenter,
       radius: orbRadius,
-      fillPaint: fillPaint,
       shadowPaint: shadowPaint,
-    );
-
-    _drawAttachmentFilm(
-      canvas,
-      centerX: centerX,
-      sourceWidth: sourceWidth,
-      baseY: sourceBottom + 1.0,
-      fillPaint: fillPaint,
     );
 
     for (var i = 0; i < _drips.length; i++) {
@@ -361,14 +352,6 @@ class DynamicIslandDripPainter extends CustomPainter {
 
     canvas.drawPath(path, fillPaint);
   }
-
-  void _drawAttachmentFilm(
-    Canvas canvas, {
-    required double centerX,
-    required double sourceWidth,
-    required double baseY,
-    required Paint fillPaint,
-  }) {}
 
   void _drawDrip(
     Canvas canvas, {
@@ -647,7 +630,6 @@ class DynamicIslandDripPainter extends CustomPainter {
     Canvas canvas, {
     required Offset center,
     required double radius,
-    required Paint fillPaint,
     required Paint shadowPaint,
   }) {
     canvas.drawOval(
@@ -688,19 +670,13 @@ class DynamicIslandDripPainter extends CustomPainter {
         ..isAntiAlias = true,
     );
 
-    _drawOrbLiquid(
-      canvas,
-      center: center,
-      radius: radius,
-      fillPaint: fillPaint,
-    );
+    _drawOrbLiquid(canvas, center: center, radius: radius);
   }
 
   void _drawOrbLiquid(
     Canvas canvas, {
     required Offset center,
     required double radius,
-    required Paint fillPaint,
   }) {
     final orbRect = Rect.fromCircle(center: center, radius: radius);
     final liquidTop = center.dy + radius * (1 - 2 * orbFill);
