@@ -157,8 +157,8 @@ class DynamicIslandDripPainter extends CustomPainter {
   final double orbFill;
   final Color color;
 
-  static const Color _orbBlueTop = Color(0xFF7ABDFF);
-  static const Color _orbBlueBottom = Color(0xFF2C79FF);
+  static const Color _orbBlueTop = Color(0xFF8CCCFF);
+  static const Color _orbBlueBottom = Color(0xFF4A93FF);
 
   static const List<_DripSpec> _drips = <_DripSpec>[
     _DripSpec(
@@ -328,30 +328,30 @@ class DynamicIslandDripPainter extends CustomPainter {
     final left = centerX - width / 2;
     final right = centerX + width / 2;
     final topY = math.max(0.0, top + 17).toDouble();
-    const inset = 12.6;
+    const inset = 11.2;
     final path = Path()
       ..moveTo(left + inset, topY + 0.2)
       ..cubicTo(
-        centerX - width * 0.242,
+        centerX - width * 0.266,
         topY - 0.55,
-        centerX + width * 0.242,
+        centerX + width * 0.266,
         topY - 0.55,
         right - inset,
         topY + 0.2,
       )
       ..quadraticBezierTo(right - 1, topY, right - 1, topY + 7)
       ..cubicTo(
-        right - width * 0.088,
+        right - width * 0.075,
         bottom - 0.8,
-        centerX + width * 0.264,
+        centerX + width * 0.290,
         bottom + 0.7,
         centerX,
         bottom + 1.8,
       )
       ..cubicTo(
-        centerX - width * 0.264,
+        centerX - width * 0.290,
         bottom + 0.7,
-        left + width * 0.088,
+        left + width * 0.075,
         bottom - 0.8,
         left + 1,
         topY + 7,
@@ -477,8 +477,9 @@ class DynamicIslandDripPainter extends CustomPainter {
       _easeInOutCubic(stretch),
     );
 
+    const minAttachedLength = 6.6;
     final attachedLength =
-        6.6 + _easeInOutCubic(stretch) * (spec.travel * 0.58);
+        minAttachedLength + _easeInOutCubic(stretch) * (spec.travel * 0.58);
     final attachedTipRadius = _lerp(
       spec.tipRadius * 0.72,
       spec.tipRadius * 1.06,
@@ -487,7 +488,7 @@ class DynamicIslandDripPainter extends CustomPainter {
 
     if (phase < 0.72) {
       final length = phase < 0.18
-          ? 1.4 + _easeOutCubic(gather) * 7.0
+          ? _lerp(1.2, minAttachedLength, _easeOutCubic(gather))
           : attachedLength;
 
       final path = length < 8
@@ -1082,9 +1083,9 @@ class DynamicIslandDripPainter extends CustomPainter {
     final blend = _easeOutCubic(
       _clamp01((bottomY - 70) / ((orbCenter.dy - orbRadius * 0.12) - 70)),
     );
-    final targetBlue = Color.lerp(_orbBlueTop, _orbBlueBottom, 0.18)!;
+    final targetBlue = Color.lerp(_orbBlueTop, _orbBlueBottom, 0.08)!;
     final lowerColor = Color.lerp(color, targetBlue, blend)!;
-    final midColor = Color.lerp(color, lowerColor, 0.64)!;
+    final midColor = Color.lerp(color, lowerColor, 0.78)!;
     return Paint()
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
