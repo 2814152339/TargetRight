@@ -328,30 +328,30 @@ class DynamicIslandDripPainter extends CustomPainter {
     final left = centerX - width / 2;
     final right = centerX + width / 2;
     final topY = math.max(0.0, top + 17).toDouble();
-    const inset = 11.2;
+    const inset = 9.8;
     final path = Path()
       ..moveTo(left + inset, topY + 0.2)
       ..cubicTo(
-        centerX - width * 0.266,
+        centerX - width * 0.286,
         topY - 0.55,
-        centerX + width * 0.266,
+        centerX + width * 0.286,
         topY - 0.55,
         right - inset,
         topY + 0.2,
       )
       ..quadraticBezierTo(right - 1, topY, right - 1, topY + 7)
       ..cubicTo(
-        right - width * 0.075,
+        right - width * 0.064,
         bottom - 0.8,
-        centerX + width * 0.290,
+        centerX + width * 0.314,
         bottom + 0.7,
         centerX,
         bottom + 1.8,
       )
       ..cubicTo(
-        centerX - width * 0.290,
+        centerX - width * 0.314,
         bottom + 0.7,
-        left + width * 0.075,
+        left + width * 0.064,
         bottom - 0.8,
         left + 1,
         topY + 7,
@@ -491,7 +491,7 @@ class DynamicIslandDripPainter extends CustomPainter {
           ? _lerp(1.2, minAttachedLength, _easeOutCubic(gather))
           : attachedLength;
 
-      final path = length < 8
+      final path = length < 4.2
           ? _buildBulgePath(
               anchorX: anchorX,
               baseY: anchorY,
@@ -1081,11 +1081,11 @@ class DynamicIslandDripPainter extends CustomPainter {
     required double orbRadius,
   }) {
     final blend = _easeOutCubic(
-      _clamp01((bottomY - 70) / ((orbCenter.dy - orbRadius * 0.12) - 70)),
+      _clamp01((bottomY - 42) / ((orbCenter.dy - orbRadius * 0.08) - 42)),
     );
-    final targetBlue = Color.lerp(_orbBlueTop, _orbBlueBottom, 0.08)!;
+    final targetBlue = Color.lerp(_orbBlueTop, _orbBlueBottom, 0.34)!;
     final lowerColor = Color.lerp(color, targetBlue, blend)!;
-    final midColor = Color.lerp(color, lowerColor, 0.78)!;
+    final midColor = Color.lerp(color, lowerColor, 0.86)!;
     return Paint()
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
