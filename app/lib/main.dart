@@ -835,25 +835,18 @@ class PositionedReplicaCard extends StatelessWidget {
 class FanReplicaCard extends StatelessWidget {
   static const List<ReplicaTrackSlot> _track = <ReplicaTrackSlot>[
     ReplicaTrackSlot(
-      left: 0.05,
-      top: 0.23,
-      angle: -0.18,
-      scale: 0.95,
-      opacity: 0.98,
+      left: 0.18,
+      top: 0.08,
+      angle: -0.48,
+      scale: 0.94,
+      opacity: 1,
     ),
-    ReplicaTrackSlot(left: 0.24, top: 0.42, angle: 0.00, scale: 1.00),
-    ReplicaTrackSlot(left: 0.18, top: 0.58, angle: 0.16, scale: 1.00),
-    ReplicaTrackSlot(left: 0.08, top: 0.75, angle: 0.31, scale: 0.99),
-    ReplicaTrackSlot(left: -0.03, top: 0.92, angle: 0.46, scale: 0.98),
-    ReplicaTrackSlot(left: -0.14, top: 1.10, angle: 0.59, scale: 0.96),
-    ReplicaTrackSlot(left: -0.24, top: 1.28, angle: 0.71, scale: 0.94),
-    ReplicaTrackSlot(
-      left: -0.33,
-      top: 1.46,
-      angle: 0.82,
-      scale: 0.92,
-      opacity: 0.90,
-    ),
+    ReplicaTrackSlot(left: 0.29, top: 0.26, angle: -0.30, scale: 1),
+    ReplicaTrackSlot(left: 0.27, top: 0.41, angle: -0.16, scale: 1),
+    ReplicaTrackSlot(left: 0.25, top: 0.56, angle: 0.00, scale: 1),
+    ReplicaTrackSlot(left: 0.20, top: 0.72, angle: 0.18, scale: 0.99),
+    ReplicaTrackSlot(left: 0.12, top: 0.89, angle: 0.35, scale: 0.97),
+    ReplicaTrackSlot(left: 0.02, top: 1.06, angle: 0.54, scale: 0.95),
   ];
 
   const FanReplicaCard({
@@ -871,7 +864,7 @@ class FanReplicaCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final trackIndex = itemIndex - activeIndex + 1;
+    final trackIndex = itemIndex - activeIndex;
     final lowerIndex = trackIndex.floor();
     final upperIndex = trackIndex.ceil();
     final t = (trackIndex - lowerIndex).clamp(0.0, 1.0);
@@ -884,18 +877,11 @@ class FanReplicaCard extends StatelessWidget {
     final top = _lerp(lowerSlot.top, upperSlot.top, t) * screenSize.height;
     final angle = _lerp(lowerSlot.angle, upperSlot.angle, t);
     final scale = _lerp(lowerSlot.scale, upperSlot.scale, t);
-    final baseOpacity = _lerp(lowerSlot.opacity, upperSlot.opacity, t);
-
-    var opacity = baseOpacity;
-    if (trackIndex < 0) {
-      opacity *= (1 + trackIndex).clamp(0.0, 1.0);
-    } else if (trackIndex > _track.length - 1) {
-      opacity *= (_track.length - trackIndex).clamp(0.0, 1.0);
-    }
-
-    if (opacity <= 0.001) {
-      return const SizedBox.shrink();
-    }
+    final opacity = _lerp(
+      lowerSlot.opacity,
+      upperSlot.opacity,
+      t,
+    ).clamp(0.0, 1.0);
 
     return Positioned(
       left: left,
@@ -919,11 +905,25 @@ class FanReplicaCard extends StatelessWidget {
   }
 
   static ReplicaTrackSlot _slotFor(int index) {
-    if (index <= 0) {
-      return _track.first;
+    if (index < 0) {
+      final first = _track.first;
+      return ReplicaTrackSlot(
+        left: first.left - 0.12,
+        top: first.top - 0.16,
+        angle: first.angle - 0.12,
+        scale: first.scale,
+        opacity: 1,
+      );
     }
-    if (index >= _track.length - 1) {
-      return _track.last;
+    if (index > _track.length - 1) {
+      final last = _track.last;
+      return ReplicaTrackSlot(
+        left: last.left - 0.13,
+        top: last.top + 0.17,
+        angle: last.angle + 0.14,
+        scale: last.scale,
+        opacity: 1,
+      );
     }
     return _track[index];
   }
