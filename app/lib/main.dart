@@ -607,6 +607,18 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
   final ScrollController _scrollController = ScrollController();
   bool _isSnapping = false;
 
+  double _applyMagneticSnap(double offset, ScrollPosition position) {
+    final nearest = (offset / _stepExtent).roundToDouble() * _stepExtent;
+    final distance = (nearest - offset).abs();
+    if (distance > 30) {
+      return offset;
+    }
+
+    final strength = Curves.easeOutCubic.transform(1 - (distance / 30)) * 0.28;
+    final snapped = offset + (nearest - offset) * strength;
+    return snapped.clamp(position.minScrollExtent, position.maxScrollExtent);
+  }
+
   void _maybeSnap(ScrollEndNotification notification) {
     if (!_scrollController.hasClients || _isSnapping) {
       return;
@@ -723,7 +735,7 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                                       if (!_scrollController.hasClients) {
                                         return;
                                       }
-                                      final next =
+                                      final rawNext =
                                           (_scrollController.offset -
                                                   details.delta.dy)
                                               .clamp(
@@ -732,6 +744,10 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                                                     .position
                                                     .maxScrollExtent,
                                               );
+                                      final next = _applyMagneticSnap(
+                                        rawNext,
+                                        _scrollController.position,
+                                      );
                                       _scrollController.jumpTo(next);
                                     },
                                     onVerticalDragEnd: (details) {
@@ -869,13 +885,13 @@ class PositionedReplicaCard extends StatelessWidget {
 
 class FanReplicaCard extends StatelessWidget {
   static const List<ReplicaTrackSlot> _track = <ReplicaTrackSlot>[
-    ReplicaTrackSlot(left: 0.20, top: 0.02, angle: -0.54, scale: 0.94),
-    ReplicaTrackSlot(left: 0.28, top: 0.14, angle: -0.36, scale: 0.98),
-    ReplicaTrackSlot(left: 0.32, top: 0.26, angle: -0.18, scale: 0.99),
-    ReplicaTrackSlot(left: 0.28, top: 0.39, angle: 0.00, scale: 1.00),
-    ReplicaTrackSlot(left: 0.20, top: 0.54, angle: 0.18, scale: 0.99),
-    ReplicaTrackSlot(left: 0.10, top: 0.71, angle: 0.36, scale: 0.98),
-    ReplicaTrackSlot(left: -0.03, top: 0.90, angle: 0.54, scale: 0.96),
+    ReplicaTrackSlot(left: 0.16, top: 0.01, angle: -0.56, scale: 0.94),
+    ReplicaTrackSlot(left: 0.26, top: 0.13, angle: -0.37, scale: 0.98),
+    ReplicaTrackSlot(left: 0.33, top: 0.25, angle: -0.19, scale: 0.99),
+    ReplicaTrackSlot(left: 0.30, top: 0.39, angle: 0.00, scale: 1.00),
+    ReplicaTrackSlot(left: 0.24, top: 0.51, angle: 0.19, scale: 0.99),
+    ReplicaTrackSlot(left: 0.16, top: 0.63, angle: 0.37, scale: 0.98),
+    ReplicaTrackSlot(left: 0.06, top: 0.76, angle: 0.56, scale: 0.96),
   ];
 
   const FanReplicaCard({
