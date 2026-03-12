@@ -521,16 +521,21 @@ class DynamicIslandDripPainter extends CustomPainter {
       return;
     }
 
-    final tailRecover = _easeOutCubic(_normalize(split, 0.0, 1.0));
-    final upperLength = _lerp(attachedLength * 0.98, 5.2, tailRecover);
+    final detachPhase = _easeOutCubic(_normalize(split, 0.0, 0.42));
+    final tailRecover = _easeOutCubic(_normalize(split, 0.46, 1.0));
+    final upperLength = _lerp(attachedLength, 5.2, tailRecover);
     final upperPath = _buildDripPath(
       anchorX: anchorX,
       baseY: anchorY,
-      shoulder: _lerp(fullShoulder * 0.98, spec.shoulder * 0.34, tailRecover),
-      neck: _lerp(fullNeck * 0.92, spec.neck * 0.22, tailRecover),
+      shoulder: _lerp(fullShoulder, spec.shoulder * 0.34, tailRecover),
+      neck: _lerp(
+        _lerp(fullNeck, spec.neck * 0.42, detachPhase),
+        spec.neck * 0.22,
+        tailRecover,
+      ),
       length: upperLength,
       tipRadius: _lerp(
-        attachedTipRadius * 0.38,
+        _lerp(attachedTipRadius, attachedTipRadius * 0.54, detachPhase),
         spec.tipRadius * 0.08,
         tailRecover,
       ),
@@ -552,7 +557,7 @@ class DynamicIslandDripPainter extends CustomPainter {
       spec.tipRadius * 1.10,
       dropForm,
     );
-    final separationY = anchorY + upperLength;
+    final separationY = anchorY + attachedLength;
     final dropY = _lerp(
       separationY + dropRadius * 0.34,
       impactY,
