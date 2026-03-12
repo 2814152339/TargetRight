@@ -607,6 +607,7 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
   final ScrollController _scrollController = ScrollController();
   bool _isSnapping = false;
   double _lastDragDelta = 0.0;
+  static const double _dragResponse = 1.18;
 
   void _snapToNearestSlot([double velocity = 0.0]) {
     if (!_scrollController.hasClients || _isSnapping) {
@@ -641,24 +642,34 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
 
     _isSnapping = true;
     final distance = target - current;
-    final overshoot = (distance * 0.16).clamp(-14.0, 14.0);
-    final preTarget = (target + overshoot).clamp(
+    final travelRatio = velocity.abs() > 260 ? 0.84 : 0.72;
+    final coastTarget = (current + distance * travelRatio).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    final snapOvershoot = (distance * 0.08).clamp(-10.0, 10.0);
+    final snapTarget = (target + snapOvershoot).clamp(
       position.minScrollExtent,
       position.maxScrollExtent,
     );
 
     Future<void> settle() async {
-      if ((preTarget - current).abs() > 6) {
+      if ((coastTarget - current).abs() > 4) {
         await _scrollController.animateTo(
-          preTarget,
-          duration: const Duration(milliseconds: 120),
-          curve: Curves.easeOutCubic,
+          coastTarget,
+          duration: Duration(milliseconds: velocity.abs() > 260 ? 420 : 340),
+          curve: Curves.easeOutQuart,
         );
       }
       await _scrollController.animateTo(
+        snapTarget,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+      );
+      await _scrollController.animateTo(
         target,
-        duration: Duration(milliseconds: velocity.abs() > 180 ? 210 : 260),
-        curve: Curves.easeOutQuart,
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOutCubic,
       );
     }
 
@@ -757,7 +768,8 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                                       _lastDragDelta = details.delta.dy;
                                       final next =
                                           (_scrollController.offset -
-                                                  details.delta.dy * 1.42)
+                                                  details.delta.dy *
+                                                      _dragResponse)
                                               .clamp(
                                                 0.0,
                                                 _scrollController
