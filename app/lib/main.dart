@@ -607,19 +607,6 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
   final ScrollController _scrollController = ScrollController();
   bool _isSnapping = false;
 
-  double _applyMagneticSnap(double offset, ScrollPosition position) {
-    final nearest = (offset / _stepExtent).roundToDouble() * _stepExtent;
-    final distance = (nearest - offset).abs();
-    if (distance > 96) {
-      return offset;
-    }
-
-    final strength =
-        0.48 + Curves.easeOutCubic.transform(1 - (distance / 96)) * 0.52;
-    final snapped = offset + (nearest - offset) * strength;
-    return snapped.clamp(position.minScrollExtent, position.maxScrollExtent);
-  }
-
   void _maybeSnap(ScrollEndNotification notification) {
     if (!_scrollController.hasClients || _isSnapping) {
       return;
@@ -633,12 +620,6 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
       _cards.length - 1,
     );
 
-    if (velocity < -120) {
-      nearestIndex = math.max(0, nearestIndex - 1);
-    } else if (velocity > 120) {
-      nearestIndex = math.min(_cards.length - 1, nearestIndex + 1);
-    }
-
     final target = (nearestIndex * _stepExtent).clamp(
       position.minScrollExtent,
       position.maxScrollExtent,
@@ -651,8 +632,8 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
     _scrollController
         .animateTo(
           target,
-          duration: const Duration(milliseconds: 380),
-          curve: Curves.easeOutCubic,
+          duration: Duration(milliseconds: velocity.abs() > 180 ? 240 : 320),
+          curve: Curves.easeOutQuart,
         )
         .whenComplete(() {
           _isSnapping = false;
@@ -741,7 +722,7 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                                       if (!_scrollController.hasClients) {
                                         return;
                                       }
-                                      final rawNext =
+                                      final next =
                                           (_scrollController.offset -
                                                   details.delta.dy)
                                               .clamp(
@@ -750,10 +731,6 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                                                     .position
                                                     .maxScrollExtent,
                                               );
-                                      final next = _applyMagneticSnap(
-                                        rawNext,
-                                        _scrollController.position,
-                                      );
                                       _scrollController.jumpTo(next);
                                     },
                                     onVerticalDragEnd: (details) {
