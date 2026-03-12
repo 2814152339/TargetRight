@@ -237,10 +237,7 @@ class DynamicIslandDripPainter extends CustomPainter {
       width: width,
       height: height,
     );
-    final pill = RRect.fromRectAndRadius(
-      rect,
-      Radius.circular(height / 2),
-    );
+    final pill = RRect.fromRectAndRadius(rect, Radius.circular(height / 2));
 
     canvas.drawRRect(pill.shift(const Offset(0, 2)), shadowPaint);
     canvas.drawRRect(pill, fillPaint);
@@ -298,20 +295,23 @@ class DynamicIslandDripPainter extends CustomPainter {
     for (final drip in _drips) {
       final anchorX = centerX + sourceWidth * drip.anchorFactor;
       final shoulder = drip.shoulder * 0.82;
+      final dipDepth = drip.detachedDrop ? baseY + 1.35 : baseY - 0.18;
+      final controlY = drip.detachedDrop ? baseY + 1.1 : baseY - 0.72;
+      final neckWidth = drip.detachedDrop ? drip.neck * 0.9 : drip.neck * 0.44;
 
       path
         ..lineTo(anchorX - shoulder, baseY - 1.8)
         ..cubicTo(
           anchorX - shoulder * 0.56,
           baseY - 1.8,
-          anchorX - drip.neck * 0.9,
-          baseY + 1.1,
+          anchorX - neckWidth,
+          controlY,
           anchorX,
-          baseY + 1.35,
+          dipDepth,
         )
         ..cubicTo(
-          anchorX + drip.neck * 0.9,
-          baseY + 1.1,
+          anchorX + neckWidth,
+          controlY,
           anchorX + shoulder * 0.56,
           baseY - 1.8,
           anchorX + shoulder,
@@ -343,6 +343,19 @@ class DynamicIslandDripPainter extends CustomPainter {
     }
 
     final anchorX = centerX + sourceWidth * spec.anchorFactor;
+    if (!spec.detachedDrop) {
+      _drawDirectCircleDrop(
+        canvas,
+        phase: phase,
+        anchorX: anchorX,
+        baseY: baseY,
+        spec: spec,
+        fillPaint: fillPaint,
+        shadowPaint: shadowPaint,
+      );
+      return;
+    }
+
     final shoulderGrow = _easeOutCubic(_normalize(phase, 0.06, 0.28));
     final stretchPhase = _normalize(phase, 0.16, 0.74);
     final tailPhase = _normalize(phase, 0.74, 1.0);
@@ -354,8 +367,8 @@ class DynamicIslandDripPainter extends CustomPainter {
     var length = phase < 0.16
         ? _easeOutCubic(_normalize(phase, 0.05, 0.16)) * 7
         : 6 +
-            _easeInOutCubic(stretchPhase) * spec.primaryLength +
-            _easeInCubic(tailPhase) * spec.tailLength;
+              _easeInOutCubic(stretchPhase) * spec.primaryLength +
+              _easeInCubic(tailPhase) * spec.tailLength;
     length -= _easeInOutCubic(reboundPhase) * spec.rebound;
     length = math.max(1.4, length).toDouble();
 
@@ -389,8 +402,11 @@ class DynamicIslandDripPainter extends CustomPainter {
 
     if (spec.detachedDrop && phase > 0.76) {
       final detachedPhase = _normalize(phase, 0.76, 1.0);
-      final detachedRadius =
-          _lerp(spec.tipRadius * 0.36, spec.tipRadius * 0.62, detachedPhase);
+      final detachedRadius = _lerp(
+        spec.tipRadius * 0.36,
+        spec.tipRadius * 0.62,
+        detachedPhase,
+      );
       final detachedX = anchorX;
       final detachedY = tipCenterY + 8 + detachedPhase * detachedPhase * 64;
 
@@ -405,6 +421,33 @@ class DynamicIslandDripPainter extends CustomPainter {
         fillPaint,
       );
     }
+  }
+
+  void _drawDirectCircleDrop(
+    Canvas canvas, {
+    required double phase,
+    required double anchorX,
+    required double baseY,
+    required _DripSpec spec,
+    required Paint fillPaint,
+    required Paint shadowPaint,
+  }) {
+    final emergePhase = _normalize(phase, 0.05, 0.28);
+    final fallPhase = _normalize(phase, 0.28, 1.0);
+    final radius = spec.tipRadius * 1.02;
+    final hiddenCenterY = baseY - radius * 0.78;
+    final exposedCenterY = baseY + radius;
+    final emergeY = _lerp(
+      hiddenCenterY,
+      exposedCenterY,
+      _easeInOutCubic(emergePhase),
+    );
+    final fallDistance = 18 + spec.primaryLength + spec.tailLength * 0.92;
+    final fallY = exposedCenterY + _easeInCubic(fallPhase) * fallDistance;
+    final centerY = phase < 0.28 ? emergeY : fallY;
+
+    canvas.drawCircle(Offset(anchorX, centerY + 1), radius, shadowPaint);
+    canvas.drawCircle(Offset(anchorX, centerY), radius, fillPaint);
   }
 
   Path _buildBulgePath({
