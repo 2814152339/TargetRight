@@ -711,9 +711,13 @@ class DynamicIslandDripPainter extends CustomPainter {
     required double radius,
     required Paint shadowPaint,
   }) {
+    final motionOffset = _orbMotionOffset(radius);
     canvas.drawOval(
       Rect.fromCenter(
-        center: Offset(center.dx, center.dy + radius + 18),
+        center: Offset(
+          center.dx + motionOffset.dx * 1.05,
+          center.dy + radius + 18 + motionOffset.dy * 0.72,
+        ),
         width: radius * 1.86,
         height: radius * 0.42,
       ),
@@ -723,7 +727,10 @@ class DynamicIslandDripPainter extends CustomPainter {
     );
     canvas.drawOval(
       Rect.fromCenter(
-        center: Offset(center.dx, center.dy + radius + 12),
+        center: Offset(
+          center.dx + motionOffset.dx * 0.92,
+          center.dy + radius + 12 + motionOffset.dy * 0.64,
+        ),
         width: radius * 1.5,
         height: radius * 0.34,
       ),
@@ -835,6 +842,7 @@ class DynamicIslandDripPainter extends CustomPainter {
     required Offset center,
     required double radius,
   }) {
+    final motionOffset = _orbMotionOffset(radius);
     final orbRect = Rect.fromCircle(center: center, radius: radius);
 
     canvas.drawCircle(
@@ -857,7 +865,10 @@ class DynamicIslandDripPainter extends CustomPainter {
 
     canvas.drawOval(
       Rect.fromCenter(
-        center: Offset(center.dx - radius * 0.26, center.dy - radius * 0.34),
+        center: Offset(
+          center.dx - radius * 0.26 + motionOffset.dx,
+          center.dy - radius * 0.34 + motionOffset.dy,
+        ),
         width: radius * 0.44,
         height: radius * 0.78,
       ),
@@ -872,7 +883,10 @@ class DynamicIslandDripPainter extends CustomPainter {
 
     canvas.drawArc(
       Rect.fromCenter(
-        center: Offset(center.dx + radius * 0.04, center.dy + radius * 0.04),
+        center: Offset(
+          center.dx + radius * 0.04 + motionOffset.dx,
+          center.dy + radius * 0.04 + motionOffset.dy,
+        ),
         width: radius * 1.58,
         height: radius * 1.62,
       ),
@@ -1170,6 +1184,13 @@ class DynamicIslandDripPainter extends CustomPainter {
       ).createShader(bounds)
       ..style = PaintingStyle.fill
       ..isAntiAlias = true;
+  }
+
+  Offset _orbMotionOffset(double radius) {
+    final horizontal = (liquidTilt * 0.62 + sloshing * 0.88) * radius * 0.14;
+    final vertical =
+        (liquidTilt.abs() * 0.22 + sloshing.abs() * 0.36) * radius * 0.055;
+    return Offset(horizontal, vertical);
   }
 
   static double _phaseFor(double t, _DripSpec spec) {
