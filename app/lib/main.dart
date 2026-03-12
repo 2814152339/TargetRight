@@ -657,7 +657,7 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
       if ((coastTarget - current).abs() > 4) {
         await _scrollController.animateTo(
           coastTarget,
-          duration: Duration(milliseconds: velocity.abs() > 260 ? 420 : 340),
+          duration: Duration(milliseconds: velocity.abs() > 260 ? 1260 : 1020),
           curve: Curves.easeOutQuart,
         );
       }
