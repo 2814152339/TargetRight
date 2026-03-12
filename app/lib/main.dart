@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,9 +43,17 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final List<double> _lastPhases;
+  StreamSubscription<AccelerometerEvent>? _accelerometerSub;
+  StreamSubscription<UserAccelerometerEvent>? _userAccelerometerSub;
   int _cycleIndex = 0;
   double _lastValue = 0;
   double _orbFill = 0.24;
+  Duration _lastElapsed = Duration.zero;
+  double _targetTilt = 0;
+  double _liquidTilt = 0;
+  double _tiltVelocity = 0;
+  double _shakeKick = 0;
+  double _sloshing = 0;
 
   @override
   void initState() {
@@ -52,6 +62,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       DynamicIslandDripPainter._drips.length,
       0,
     );
+    _startMotionTracking();
     _controller =
         AnimationController(
             vsync: this,
@@ -59,6 +70,8 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
           )
           ..addListener(() {
             final value = _controller.value;
+            final elapsed = _controller.lastElapsedDuration ?? Duration.zero;
+            final dt = _frameDelta(elapsed);
             var nextCycleIndex = _cycleIndex;
             var nextOrbFill = _orbFill;
             var needsUpdate = false;
@@ -84,6 +97,8 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
               _lastPhases[i] = phase;
             }
 
+            _updateLiquidMotion(dt);
+
             if (needsUpdate) {
               setState(() {
                 _cycleIndex = nextCycleIndex;
@@ -97,6 +112,8 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
 
   @override
   void dispose() {
+    _accelerometerSub?.cancel();
+    _userAccelerometerSub?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -118,6 +135,8 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
               activeStretchIndex: _stretchIndexForCycle(_cycleIndex),
               previousStretchIndex: _stretchIndexForCycle(_cycleIndex - 1),
               orbFill: _orbFill,
+              liquidTilt: _liquidTilt,
+              sloshing: _sloshing,
               color: Colors.black,
             ),
             child: const SizedBox.expand(),
@@ -138,6 +157,62 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     const allowed = <int>[0, 4, 1, 3];
     return allowed[cycle % allowed.length];
   }
+
+  void _startMotionTracking() {
+    try {
+      _accelerometerSub =
+          accelerometerEventStream(
+            samplingPeriod: SensorInterval.gameInterval,
+          ).listen((event) {
+            _targetTilt = (-event.x / 7.2).clamp(-1.0, 1.0).toDouble();
+          });
+
+      _userAccelerometerSub =
+          userAccelerometerEventStream(
+            samplingPeriod: SensorInterval.gameInterval,
+          ).listen((event) {
+            final horizontalKick = (-event.x / 12)
+                .clamp(-0.28, 0.28)
+                .toDouble();
+            final shakeEnergy =
+                (((event.x.abs() * 0.9) + (event.y.abs() * 0.6)) / 14).clamp(
+                  0.0,
+                  0.45,
+                );
+            _shakeKick += horizontalKick * 0.28;
+            _sloshing = (_sloshing + horizontalKick * (0.65 + shakeEnergy))
+                .clamp(-1.15, 1.15)
+                .toDouble();
+          });
+    } catch (_) {
+      _accelerometerSub = null;
+      _userAccelerometerSub = null;
+    }
+  }
+
+  double _frameDelta(Duration elapsed) {
+    final rawDelta = (elapsed - _lastElapsed).inMicroseconds / 1000000;
+    _lastElapsed = elapsed;
+    if (rawDelta <= 0 || rawDelta > 0.1) {
+      return 1 / 60;
+    }
+    return rawDelta;
+  }
+
+  void _updateLiquidMotion(double dt) {
+    final springPull = (_targetTilt - _liquidTilt) * 10.5;
+    _tiltVelocity += springPull * dt;
+    _tiltVelocity += _shakeKick;
+    _shakeKick = 0;
+
+    final frameDamping = math.pow(0.90, dt * 60).toDouble();
+    _tiltVelocity *= frameDamping;
+    _liquidTilt += _tiltVelocity * dt * 60;
+    _liquidTilt = _liquidTilt.clamp(-1.15, 1.15).toDouble();
+
+    final sloshDamping = math.pow(0.92, dt * 60).toDouble();
+    _sloshing *= sloshDamping;
+  }
 }
 
 class DynamicIslandDripPainter extends CustomPainter {
@@ -147,6 +222,8 @@ class DynamicIslandDripPainter extends CustomPainter {
     required this.activeStretchIndex,
     required this.previousStretchIndex,
     required this.orbFill,
+    required this.liquidTilt,
+    required this.sloshing,
     required this.color,
   });
 
@@ -155,6 +232,8 @@ class DynamicIslandDripPainter extends CustomPainter {
   final int activeStretchIndex;
   final int previousStretchIndex;
   final double orbFill;
+  final double liquidTilt;
+  final double sloshing;
   final Color color;
 
   static const Color _orbBlueTop = Color(0xFF8CCCFF);
@@ -506,7 +585,7 @@ class DynamicIslandDripPainter extends CustomPainter {
     }
 
     final detachPhase = _easeOutCubic(_normalize(split, 0.0, 0.30));
-    final tailRecover = _easeOutCubic(_normalize(split, 0.30, 0.66));
+    final tailRecover = _easeOutCubic(_normalize(split, 0.22, 0.46));
     final upperLength = _lerp(attachedLength, 5.0, tailRecover);
     final upperPath = _buildDripPath(
       anchorX: anchorX,
@@ -566,8 +645,8 @@ class DynamicIslandDripPainter extends CustomPainter {
     required Paint fillPaint,
     required Paint shadowPaint,
   }) {
-    final emerge = _normalize(phase, 0.06, 0.36);
-    final fall = _normalize(phase, 0.36, 1.0);
+    final emerge = _normalize(phase, 0.06, 0.58);
+    final fall = _normalize(phase, 0.58, 1.0);
     final impactY =
         (_orbTopAtX(orbCenter, orbRadius, anchorX) ??
             (orbCenter.dy - orbRadius)) +
@@ -684,6 +763,10 @@ class DynamicIslandDripPainter extends CustomPainter {
     final right = center.dx + radius;
     final waveA = 4.5 + math.sin(t * math.pi * 2).abs() * 2.6;
     final waveB = 1.8 + math.cos(t * math.pi * 2.6).abs() * 1.4;
+    final tiltHeight = liquidTilt * radius * 0.22;
+    final sloshHeight = sloshing * radius * 0.10;
+    final minSurfaceY = center.dy - radius * 0.92;
+    final maxSurfaceY = center.dy + radius * 0.90;
 
     final liquidPath = Path()
       ..moveTo(left, center.dy + radius)
@@ -692,6 +775,7 @@ class DynamicIslandDripPainter extends CustomPainter {
     for (var x = left; x <= right; x += 4) {
       final progress = (x - left) / (right - left);
       final edgeFalloff = math.sin(progress * math.pi);
+      final slope = ((progress - 0.5) * 2) * tiltHeight;
       final wave =
           math.sin((progress * 2.3 + t * 1.2) * math.pi * 2) *
               waveA *
@@ -699,7 +783,21 @@ class DynamicIslandDripPainter extends CustomPainter {
           math.sin((progress * 4.8 - t * 1.8) * math.pi * 2) *
               waveB *
               edgeFalloff;
-      liquidPath.lineTo(x, liquidTop + wave);
+      final sloshWave =
+          math.sin(
+                (progress * 1.45 - t * 1.15 + sloshing * 0.35) * math.pi * 2,
+              ) *
+              sloshHeight *
+              edgeFalloff +
+          math.sin((progress * 2.8 + t * 0.82) * math.pi * 2) *
+              sloshHeight *
+              0.32 *
+              edgeFalloff;
+      final surfaceY = (liquidTop + slope + wave + sloshWave).clamp(
+        minSurfaceY,
+        maxSurfaceY,
+      );
+      liquidPath.lineTo(x, surfaceY);
     }
 
     liquidPath
@@ -1099,6 +1197,8 @@ class DynamicIslandDripPainter extends CustomPainter {
         oldDelegate.activeStretchIndex != activeStretchIndex ||
         oldDelegate.previousStretchIndex != previousStretchIndex ||
         oldDelegate.orbFill != orbFill ||
+        oldDelegate.liquidTilt != liquidTilt ||
+        oldDelegate.sloshing != sloshing ||
         oldDelegate.color != color;
   }
 }
