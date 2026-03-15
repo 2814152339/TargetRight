@@ -405,6 +405,13 @@ class _SlideOutReplicaPanel extends StatefulWidget {
 }
 
 class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
+  static const List<String> _defaultTitles = <String>[
+    '\u6dfb\u52a0\u63d0\u9192',
+    '\u8be5\u559d\u6c34\u5566',
+    '\u8d77\u6765\u52a8\u4e00\u52a8',
+    '\u4f11\u606f\u65f6\u95f4\u5230',
+  ];
+
   static const List<ReplicaCardData> _cards = <ReplicaCardData>[
     ReplicaCardData(
       index: 1,
@@ -608,6 +615,17 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
   bool _isSnapping = false;
   double _lastDragDelta = 0.0;
   static const double _dragResponse = 1.18;
+  late final List<String?> _customReminderTitles;
+  late final List<String?> _customReminderEmojis;
+  late final List<String?> _customReminderDescriptions;
+
+  @override
+  void initState() {
+    super.initState();
+    _customReminderTitles = List<String?>.filled(_cards.length, null);
+    _customReminderEmojis = List<String?>.filled(_cards.length, null);
+    _customReminderDescriptions = List<String?>.filled(_cards.length, null);
+  }
 
   void _snapToNearestSlot([double velocity = 0.0]) {
     if (!_scrollController.hasClients || _isSnapping) {
@@ -646,7 +664,7 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
         ? (distance >= 0 ? 1.0 : -1.0)
         : inferredDirection.toDouble();
     final inertiaDistance =
-        _stepExtent * (velocity.abs() > 260 ? 2.4 : 1.95) * directionSign;
+        _stepExtent * (velocity.abs() > 260 ? 4.8 : 3.9) * directionSign;
     final coastTarget = (current + inertiaDistance + distance * 0.35).clamp(
       position.minScrollExtent,
       position.maxScrollExtent,
@@ -701,6 +719,210 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
     _scrollController.dispose();
     super.dispose();
   }
+
+  int get _firstEmptyReminderIndex {
+    for (var i = 4; i < _customReminderTitles.length; i++) {
+      if (_customReminderTitles[i] == null) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  // ignore: unused_element
+  Future<void> _showAddReminderDialog() async {
+    final firstEmptyIndex = _firstEmptyReminderIndex;
+    if (firstEmptyIndex == -1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '\u4e8b\u9879\u5361\u7247\u5df2\u7ecf\u5168\u90e8\u6dfb\u52a0\u5b8c\u6210',
+          ),
+        ),
+      );
+      return;
+    }
+    final controller = TextEditingController();
+    final title = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('\u65b0\u589e\u63d0\u9192'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLength: 16,
+            decoration: const InputDecoration(
+              hintText: '\u8f93\u5165\u63d0\u9192\u5185\u5bb9',
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('\u53d6\u6d88'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context).pop(controller.text.trim());
+              },
+              child: const Text('\u786e\u5b9a'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    if (!mounted || title == null || title.isEmpty) {
+      return;
+    }
+    setState(() {
+      _customReminderTitles[firstEmptyIndex] = title;
+    });
+  }
+
+  // ignore: unused_element
+  String _titleForCard(int index) {
+    if (index < _defaultTitles.length) {
+      return _defaultTitles[index];
+    }
+    final custom = _customReminderTitles[index];
+    if (custom != null) {
+      return custom;
+    }
+    if (index == _firstEmptyReminderIndex) {
+      return '\u6dfb\u52a0\u4e8b\u9879';
+    }
+    return '';
+  }
+
+  // ignore: unused_element
+  bool _isPlaceholderCard(int index) =>
+      index >= 4 && _customReminderTitles[index] == null;
+
+  // ignore: unused_element
+  bool _isActiveSaturation(int index) =>
+      index < 4 || _customReminderTitles[index] != null;
+
+  Future<void> _openReminderDialogForCard(int tappedIndex) async {
+    final isEditing = _customReminderTitles[tappedIndex] != null;
+    final targetIndex = isEditing ? tappedIndex : _firstEmptyReminderIndex;
+    if (targetIndex == -1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '\u4e8b\u9879\u5361\u7247\u5df2\u7ecf\u5168\u90e8\u6dfb\u52a0\u5b8c\u6210',
+          ),
+        ),
+      );
+      return;
+    }
+    final titleController = TextEditingController(
+      text: _customReminderTitles[targetIndex] ?? '',
+    );
+    final emojiController = TextEditingController(
+      text: _customReminderEmojis[targetIndex] ?? '',
+    );
+    final descriptionController = TextEditingController(
+      text: _customReminderDescriptions[targetIndex] ?? '',
+    );
+    final shouldSave = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(
+            isEditing ? '\u7f16\u8f91\u4e8b\u9879' : '\u65b0\u589e\u4e8b\u9879',
+          ),
+          content: SizedBox(
+            width: 340,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                TextField(
+                  controller: titleController,
+                  autofocus: true,
+                  maxLength: 16,
+                  decoration: const InputDecoration(
+                    labelText: '\u4e8b\u9879\u6807\u9898',
+                    hintText: '\u4f8b\u5982\uff1a\u559d\u4e00\u676f\u6c34',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: emojiController,
+                  maxLength: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Emoji \u8868\u60c5',
+                    hintText: '\u4f8b\u5982\uff1a\u{1F4A7}',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: descriptionController,
+                  minLines: 3,
+                  maxLines: 5,
+                  maxLength: 80,
+                  decoration: const InputDecoration(
+                    labelText: '\u4e8b\u9879\u63cf\u8ff0',
+                    hintText: '\u8865\u5145\u63d0\u9192\u8be6\u60c5',
+                    alignLabelWithHint: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('\u53d6\u6d88'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (titleController.text.trim().isEmpty) {
+                  return;
+                }
+                Navigator.of(context).pop(true);
+              },
+              child: const Text('\u4fdd\u5b58'),
+            ),
+          ],
+        );
+      },
+    );
+    titleController.dispose();
+    emojiController.dispose();
+    descriptionController.dispose();
+    if (!mounted || shouldSave != true) {
+      return;
+    }
+    setState(() {
+      _customReminderTitles[targetIndex] = titleController.text.trim();
+      _customReminderEmojis[targetIndex] = emojiController.text.trim();
+      _customReminderDescriptions[targetIndex] = descriptionController.text
+          .trim();
+    });
+  }
+
+  String _displayTitleFor(int index) {
+    final custom = _customReminderTitles[index];
+    if (custom != null) {
+      return custom;
+    }
+    if (index < _defaultTitles.length) {
+      return _defaultTitles[index];
+    }
+    if (index == _firstEmptyReminderIndex) {
+      return '\u6dfb\u52a0\u4e8b\u9879';
+    }
+    return '';
+  }
+
+  String _displayEmojiFor(int index) => _customReminderEmojis[index] ?? '';
+
+  bool _displayPlaceholderFor(int index) =>
+      _customReminderTitles[index] == null;
+
+  bool _displaySaturationFor(int index) =>
+      index < 4 || _customReminderTitles[index] != null;
 
   @override
   Widget build(BuildContext context) {
@@ -808,6 +1030,18 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                                             activeIndex: fractionalIndex,
                                             panelProgress: widget.progress,
                                             screenSize: media,
+                                            displayTitle: _displayTitleFor(i),
+                                            displayEmoji: _displayEmojiFor(i),
+                                            isPlaceholder:
+                                                _displayPlaceholderFor(i),
+                                            showGlassPlus:
+                                                _customReminderTitles[i] ==
+                                                null,
+                                            useFullSaturation:
+                                                _displaySaturationFor(i),
+                                            onTap: () {
+                                              _openReminderDialogForCard(i);
+                                            },
                                           ),
                                       ],
                                     ),
@@ -919,10 +1153,10 @@ class FanReplicaCard extends StatelessWidget {
     ReplicaTrackSlot(left: 0.16, top: 0.01, angle: -0.56, scale: 0.94),
     ReplicaTrackSlot(left: 0.26, top: 0.13, angle: -0.37, scale: 0.98),
     ReplicaTrackSlot(left: 0.33, top: 0.25, angle: -0.19, scale: 0.99),
-    ReplicaTrackSlot(left: 0.30, top: 0.39, angle: 0.00, scale: 1.00),
-    ReplicaTrackSlot(left: 0.24, top: 0.51, angle: 0.19, scale: 0.99),
-    ReplicaTrackSlot(left: 0.16, top: 0.63, angle: 0.37, scale: 0.98),
-    ReplicaTrackSlot(left: 0.06, top: 0.76, angle: 0.56, scale: 0.96),
+    ReplicaTrackSlot(left: 0.34, top: 0.39, angle: 0.00, scale: 1.00),
+    ReplicaTrackSlot(left: 0.28, top: 0.51, angle: 0.19, scale: 0.99),
+    ReplicaTrackSlot(left: 0.20, top: 0.63, angle: 0.37, scale: 0.98),
+    ReplicaTrackSlot(left: 0.10, top: 0.76, angle: 0.56, scale: 0.96),
   ];
 
   const FanReplicaCard({
@@ -932,6 +1166,12 @@ class FanReplicaCard extends StatelessWidget {
     required this.activeIndex,
     required this.panelProgress,
     required this.screenSize,
+    required this.displayTitle,
+    required this.displayEmoji,
+    required this.isPlaceholder,
+    required this.showGlassPlus,
+    required this.useFullSaturation,
+    required this.onTap,
   });
 
   final ReplicaCardData item;
@@ -939,6 +1179,12 @@ class FanReplicaCard extends StatelessWidget {
   final double activeIndex;
   final double panelProgress;
   final Size screenSize;
+  final String displayTitle;
+  final String displayEmoji;
+  final bool isPlaceholder;
+  final bool showGlassPlus;
+  final bool useFullSaturation;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -978,7 +1224,17 @@ class FanReplicaCard extends StatelessWidget {
               ignoring: opacity <= 0,
               child: Opacity(
                 opacity: opacity,
-                child: ReplicaCard(item: item, width: width, height: height),
+                child: ReplicaCard(
+                  item: item,
+                  width: width,
+                  height: height,
+                  displayTitle: displayTitle,
+                  displayEmoji: displayEmoji,
+                  isPlaceholder: isPlaceholder,
+                  showGlassPlus: showGlassPlus,
+                  useFullSaturation: useFullSaturation,
+                  onTap: onTap,
+                ),
               ),
             ),
           ),
@@ -1030,6 +1286,12 @@ class ReplicaCard extends StatelessWidget {
     required this.item,
     required this.width,
     required this.height,
+    this.displayTitle,
+    this.displayEmoji = '',
+    this.isPlaceholder = false,
+    this.showGlassPlus = false,
+    this.useFullSaturation = true,
+    this.onTap,
     this.shadowBlur = 8,
     this.shadowSpread = 2,
     this.isFocused = false,
@@ -1038,12 +1300,26 @@ class ReplicaCard extends StatelessWidget {
   final ReplicaCardData item;
   final double width;
   final double height;
+  final String? displayTitle;
+  final String displayEmoji;
+  final bool isPlaceholder;
+  final bool showGlassPlus;
+  final bool useFullSaturation;
+  final VoidCallback? onTap;
   final double shadowBlur;
   final double shadowSpread;
   final bool isFocused;
 
   @override
   Widget build(BuildContext context) {
+    final resolvedTitle = displayTitle ?? item.title;
+    final baseColor = _displayColor(item.color, useFullSaturation);
+    final showEmoji = displayEmoji.trim().isNotEmpty && !isPlaceholder;
+    final trailingColor = isPlaceholder
+        ? Colors.grey.withValues(alpha: 0.16)
+        : (showEmoji
+              ? Colors.transparent
+              : _displayColor(item.slotColor, useFullSaturation));
     final radius = height * 0.23;
     final slotInsetRight = width * item.slotInsetRight;
     final slotInsetVertical = height * item.slotInsetVertical;
@@ -1053,81 +1329,169 @@ class ReplicaCard extends StatelessWidget {
     final titleFont = height * 0.255;
     final numberFont = height * 0.46;
 
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(radius),
+        child: SizedBox(
+          width: width,
+          height: height,
+          child: Stack(
+            children: <Widget>[
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: baseColor,
+                    borderRadius: BorderRadius.circular(radius),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: baseColor.withValues(alpha: 0.58),
+                        blurRadius: 5,
+                        spreadRadius: 2,
+                        offset: const Offset(0, 0),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Positioned(
+                right: slotInsetRight,
+                top: slotInsetVertical,
+                bottom: slotInsetVertical,
+                child: SizedBox(
+                  width: slotWidth,
+                  child: showEmoji
+                      ? Center(
+                          child: Text(
+                            displayEmoji,
+                            style: TextStyle(fontSize: height * 0.44),
+                          ),
+                        )
+                      : Container(
+                          decoration: BoxDecoration(
+                            color: trailingColor,
+                            borderRadius: BorderRadius.circular(height * 0.20),
+                            border: isPlaceholder
+                                ? Border.all(
+                                    color: Colors.white.withValues(alpha: 0.34),
+                                    width: 1.0,
+                                  )
+                                : null,
+                            gradient: isPlaceholder
+                                ? LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: <Color>[
+                                      Colors.white.withValues(alpha: 0.28),
+                                      Colors.white.withValues(alpha: 0.08),
+                                    ],
+                                  )
+                                : null,
+                          ),
+                          child: showGlassPlus
+                              ? Center(
+                                  child: _GlassPlusIcon(
+                                    size: height * 0.28,
+                                    color: Colors.white.withValues(alpha: 0.72),
+                                  ),
+                                )
+                              : null,
+                        ),
+                ),
+              ),
+              Positioned(
+                left: leftPadding,
+                top: 0,
+                bottom: 0,
+                right: slotWidth + slotInsetRight + width * 0.055,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: <Widget>[
+                    SizedBox(
+                      width: bigNumberWidth,
+                      child: Transform.translate(
+                        offset: const Offset(-1.5, 1.0),
+                        child: Text(
+                          '${item.index}',
+                          style: TextStyle(
+                            fontSize: numberFont,
+                            height: 0.86,
+                            fontWeight: FontWeight.w900,
+                            color: const Color(0xFF111111),
+                            letterSpacing: -2.8,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: width * 0.025),
+                    Expanded(
+                      child: Transform.translate(
+                        offset: Offset(item.titleDx, item.titleDy),
+                        child: Text(
+                          resolvedTitle,
+                          maxLines: item.titleLines,
+                          style: TextStyle(
+                            fontSize: titleFont,
+                            height: item.titleLines > 1 ? 0.92 : 0.88,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF161616),
+                            letterSpacing: -1.3,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Color _displayColor(Color color, bool useFullSaturation) {
+    if (useFullSaturation) {
+      return color;
+    }
+    final hsl = HSLColor.fromColor(color);
+    return hsl
+        .withSaturation((hsl.saturation * 0.35).clamp(0.0, 1.0))
+        .withLightness((hsl.lightness + 0.03).clamp(0.0, 1.0))
+        .toColor();
+  }
+}
+
+class _GlassPlusIcon extends StatelessWidget {
+  const _GlassPlusIcon({required this.size, required this.color});
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final thickness = size * 0.18;
     return SizedBox(
-      width: width,
-      height: height,
+      width: size,
+      height: size,
       child: Stack(
+        alignment: Alignment.center,
         children: <Widget>[
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                color: item.color,
-                borderRadius: BorderRadius.circular(radius),
-                boxShadow: <BoxShadow>[
-                  BoxShadow(
-                    color: item.color.withValues(alpha: 0.58),
-                    blurRadius: 5,
-                    spreadRadius: 2,
-                    offset: const Offset(0, 0),
-                  ),
-                ],
-              ),
+          Container(
+            width: thickness,
+            height: size,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(thickness / 2),
             ),
           ),
-          Positioned(
-            right: slotInsetRight,
-            top: slotInsetVertical,
-            bottom: slotInsetVertical,
-            child: Container(
-              width: slotWidth,
-              decoration: BoxDecoration(
-                color: item.slotColor,
-                borderRadius: BorderRadius.circular(height * 0.20),
-              ),
-            ),
-          ),
-          Positioned(
-            left: leftPadding,
-            top: 0,
-            bottom: 0,
-            right: slotWidth + slotInsetRight + width * 0.055,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: <Widget>[
-                SizedBox(
-                  width: bigNumberWidth,
-                  child: Transform.translate(
-                    offset: const Offset(-1.5, 1.0),
-                    child: Text(
-                      '${item.index}',
-                      style: TextStyle(
-                        fontSize: numberFont,
-                        height: 0.86,
-                        fontWeight: FontWeight.w900,
-                        color: const Color(0xFF111111),
-                        letterSpacing: -2.8,
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(width: width * 0.025),
-                Expanded(
-                  child: Transform.translate(
-                    offset: Offset(item.titleDx, item.titleDy),
-                    child: Text(
-                      item.title,
-                      maxLines: item.titleLines,
-                      style: TextStyle(
-                        fontSize: titleFont,
-                        height: item.titleLines > 1 ? 0.92 : 0.88,
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFF161616),
-                        letterSpacing: -1.3,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+          Container(
+            width: size,
+            height: thickness,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(thickness / 2),
             ),
           ),
         ],
