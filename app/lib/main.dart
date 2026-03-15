@@ -721,7 +721,7 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
   }
 
   int get _firstEmptyReminderIndex {
-    for (var i = 4; i < _customReminderTitles.length; i++) {
+    for (var i = 0; i < _customReminderTitles.length; i++) {
       if (_customReminderTitles[i] == null) {
         return i;
       }
@@ -1457,8 +1457,8 @@ class ReplicaCard extends StatelessWidget {
     }
     final hsl = HSLColor.fromColor(color);
     return hsl
-        .withSaturation((hsl.saturation * 0.35).clamp(0.0, 1.0))
-        .withLightness((hsl.lightness + 0.03).clamp(0.0, 1.0))
+        .withSaturation((hsl.saturation * 0.18).clamp(0.0, 1.0))
+        .withLightness((hsl.lightness + 0.06).clamp(0.0, 1.0))
         .toColor();
   }
 }
