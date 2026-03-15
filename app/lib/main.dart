@@ -632,22 +632,35 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
     }
     nearestIndex = nearestIndex.clamp(0, _cards.length - 1);
 
-    final target = (nearestIndex * _stepExtent).clamp(
+    final initialTarget = (nearestIndex * _stepExtent).clamp(
       position.minScrollExtent,
       position.maxScrollExtent,
     );
-    if ((target - current).abs() < 1.0) {
+    if ((initialTarget - current).abs() < 1.0) {
       return;
     }
 
     _isSnapping = true;
-    final distance = target - current;
-    final travelRatio = velocity.abs() > 260 ? 0.84 : 0.72;
-    final coastTarget = (current + distance * travelRatio).clamp(
+    final distance = initialTarget - current;
+    final directionSign = inferredDirection == 0
+        ? (distance >= 0 ? 1.0 : -1.0)
+        : inferredDirection.toDouble();
+    final inertiaDistance =
+        _stepExtent * (velocity.abs() > 260 ? 2.4 : 1.95) * directionSign;
+    final coastTarget = (current + inertiaDistance + distance * 0.35).clamp(
       position.minScrollExtent,
       position.maxScrollExtent,
     );
-    final snapOvershoot = (distance * 0.08).clamp(-10.0, 10.0);
+    final finalIndex = (coastTarget / _stepExtent).round().clamp(
+      0,
+      _cards.length - 1,
+    );
+    final target = (finalIndex * _stepExtent).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    final finalDistance = target - coastTarget;
+    final snapOvershoot = (finalDistance * 0.08).clamp(-10.0, 10.0);
     final snapTarget = (target + snapOvershoot).clamp(
       position.minScrollExtent,
       position.maxScrollExtent,
