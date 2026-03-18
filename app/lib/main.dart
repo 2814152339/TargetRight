@@ -45,9 +45,9 @@ class DynamicIslandDripPage extends StatefulWidget {
 
 class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     with TickerProviderStateMixin {
-  static const double _panelRevealDistance = 106;
-  static const double _rightPanelRevealDistance = 118;
-  static const double _bottomSheetRevealDistance = 260;
+  static const double _panelRevealDistance = 84;
+  static const double _rightPanelRevealDistance = 88;
+  static const double _bottomSheetRevealDistance = 168;
   late final AnimationController _controller;
   late final AnimationController _panelController;
   late final AnimationController _oceanPanelController;
@@ -215,7 +215,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
             final sceneOffsetX =
                 leftPanelProgress * 22 - rightPanelProgress * 22;
             final sceneOffsetY = -calendarProgress * 18;
-            final sceneOpacity = 1 - sceneCover * 0.96;
+            final sceneOpacity = 1 - sceneCover;
             final sceneScale = 1 - sceneCover * 0.035;
 
             return LayoutBuilder(
@@ -371,42 +371,29 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   }
 
   void _handlePanelDragStart(DragStartDetails details) {
-    final screenSize = MediaQuery.sizeOf(context);
-    final screenWidth = screenSize.width;
-    final isFromLeftEdge = details.localPosition.dx <= 30;
     final canResumeLeftPanel = _panelController.value > 0.02;
-    final isFromRightEdge = details.localPosition.dx >= screenWidth - 30;
     final canResumeRightPanel = _oceanPanelController.value > 0.02;
-    final isFromOrbZone = _isInPrimaryTriggerZone(
-      details.localPosition,
-      screenSize,
-    );
 
-    if (isFromLeftEdge || canResumeLeftPanel) {
+    if (canResumeLeftPanel) {
       _activeDragMode = _EdgeDragMode.leftPanel;
       _gestureArmedFromOrb = false;
       _panelDragStartX = details.globalPosition.dx;
       _panelDragStartValue = _panelController.value;
       return;
     }
-    if (isFromRightEdge || canResumeRightPanel) {
+    if (canResumeRightPanel) {
       _activeDragMode = _EdgeDragMode.rightPanel;
       _gestureArmedFromOrb = false;
       _oceanDragStartX = details.globalPosition.dx;
       _oceanDragStartValue = _oceanPanelController.value;
       return;
     }
-    if (isFromOrbZone) {
-      _activeDragMode = _EdgeDragMode.none;
-      _gestureArmedFromOrb = true;
-      _panelDragStartX = details.globalPosition.dx;
-      _panelDragStartValue = _panelController.value;
-      _oceanDragStartX = details.globalPosition.dx;
-      _oceanDragStartValue = _oceanPanelController.value;
-      return;
-    }
     _activeDragMode = _EdgeDragMode.none;
-    _gestureArmedFromOrb = false;
+    _gestureArmedFromOrb = true;
+    _panelDragStartX = details.globalPosition.dx;
+    _panelDragStartValue = _panelController.value;
+    _oceanDragStartX = details.globalPosition.dx;
+    _oceanDragStartValue = _oceanPanelController.value;
   }
 
   void _handlePanelDragUpdate(DragUpdateDetails details) {
@@ -446,7 +433,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
             ? 1.0
             : velocity < -220
             ? 0.0
-            : (_panelController.value >= 0.52 ? 1.0 : 0.0);
+            : (_panelController.value >= 0.28 ? 1.0 : 0.0);
 
         _panelController.animateTo(
           target,
@@ -460,7 +447,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
             ? 1.0
             : velocity > 220
             ? 0.0
-            : (_oceanPanelController.value >= 0.48 ? 1.0 : 0.0);
+            : (_oceanPanelController.value >= 0.28 ? 1.0 : 0.0);
 
         _oceanPanelController.animateTo(
           target,
@@ -477,21 +464,16 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   }
 
   void _handleVerticalPanelDragStart(DragStartDetails details) {
-    final screenSize = MediaQuery.sizeOf(context);
-    final screenHeight = screenSize.height;
-    final isFromBottomEdge = details.localPosition.dy >= screenHeight - 36;
     final canResumeCalendar = _calendarSheetController.value > 0.02;
-    final isFromOrbZone = _isInPrimaryTriggerZone(
-      details.localPosition,
-      screenSize,
-    );
-    if (!isFromBottomEdge && !canResumeCalendar && !isFromOrbZone) {
+    if (_panelController.value > 0.02 || _oceanPanelController.value > 0.02) {
       return;
     }
     _activeDragMode = _EdgeDragMode.bottomSheet;
     _gestureArmedFromOrb = false;
     _calendarDragStartY = details.globalPosition.dy;
-    _calendarDragStartValue = _calendarSheetController.value;
+    _calendarDragStartValue = canResumeCalendar
+        ? _calendarSheetController.value
+        : 0.0;
   }
 
   void _handleVerticalPanelDragUpdate(DragUpdateDetails details) {
@@ -513,10 +495,10 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     }
     final velocity = details.primaryVelocity ?? 0;
     final target = velocity < -220
-        ? 0.0
-        : velocity > 220
         ? 1.0
-        : (_calendarSheetController.value >= 0.42 ? 1.0 : 0.0);
+        : velocity > 220
+        ? 0.0
+        : (_calendarSheetController.value >= 0.28 ? 1.0 : 0.0);
     _calendarSheetController.animateTo(
       target,
       duration: const Duration(milliseconds: 280),
@@ -536,17 +518,6 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   }
 
   static double _lerpDouble(double a, double b, double t) => a + (b - a) * t;
-
-  bool _isInPrimaryTriggerZone(Offset localPosition, Size size) {
-    final orbCenter = Offset(size.width / 2, size.height * 0.60);
-    final orbRadius = math.min(size.width * 0.235, 94.0);
-    final triggerRect = Rect.fromCenter(
-      center: Offset(orbCenter.dx, orbCenter.dy - orbRadius * 0.28),
-      width: orbRadius * 3.8,
-      height: orbRadius * 3.9,
-    );
-    return triggerRect.contains(localPosition);
-  }
 }
 
 class _ProfileEntry extends StatelessWidget {
@@ -1900,9 +1871,9 @@ class _OceanStatsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.sizeOf(context);
-    final safeTop = MediaQuery.paddingOf(context).top;
     final reveal = Curves.easeOutCubic.transform(progress);
     final panelOffset = (1 - reveal) * media.width * 0.78;
+    final seaStatsTop = media.height * 0.46;
 
     return Positioned.fill(
       child: IgnorePointer(
@@ -1922,7 +1893,7 @@ class _OceanStatsPanel extends StatelessWidget {
                   Positioned(
                     left: 24,
                     right: 24,
-                    top: safeTop + 24,
+                    top: media.height * 0.26,
                     child: _LiquidGlassCard(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1956,6 +1927,29 @@ class _OceanStatsPanel extends StatelessWidget {
                             ),
                           ),
                         ],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 28,
+                    right: 28,
+                    top: seaStatsTop,
+                    child: IgnorePointer(
+                      child: Text(
+                        '当前总量相当于${baikalEquivalent.toStringAsPrecision(1)}个贝加尔湖',
+                        style: TextStyle(
+                          fontSize: 16,
+                          height: 1.35,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.86),
+                          shadows: <Shadow>[
+                            Shadow(
+                              color: Colors.black.withValues(alpha: 0.28),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -2050,25 +2044,49 @@ class _OceanScenePainter extends CustomPainter {
         ).createShader(seaRect),
     );
 
-    final shimmerPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: <Color>[
-          Colors.white.withValues(alpha: 0.20),
-          Colors.white.withValues(alpha: 0.0),
-        ],
-      ).createShader(seaRect)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
-    for (var i = 0; i < 5; i++) {
-      final x = size.width * (0.14 + i * 0.18) + math.sin(t * 4 + i) * 18;
+    final causticPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14);
+    for (var i = 0; i < 6; i++) {
+      final startX =
+          size.width * (0.08 + i * 0.15) + math.sin(t * 1.7 + i) * 16;
+      final startY =
+          seaTop + size.height * (0.08 + i * 0.03) + math.cos(t * 1.3 + i) * 6;
+      final midX = startX + 34 + math.sin(t * 2.4 + i * 0.7) * 26;
+      final midY = startY + 26 + math.cos(t * 1.5 + i) * 14;
+      final endX = midX + 48 + math.cos(t * 1.1 + i * 0.5) * 32;
+      final endY = midY + 46 + math.sin(t * 1.9 + i) * 18;
+      causticPaint
+        ..strokeWidth = 7 + (i.isEven ? 0.0 : 2.5)
+        ..shader = ui.Gradient.linear(
+          Offset(startX, startY),
+          Offset(endX, endY),
+          <Color>[
+            Colors.white.withValues(alpha: 0.00),
+            Colors.white.withValues(alpha: 0.16),
+            Colors.white.withValues(alpha: 0.02),
+          ],
+        );
+      final path = Path()
+        ..moveTo(startX, startY)
+        ..quadraticBezierTo(midX, midY, endX, endY);
+      canvas.drawPath(path, causticPaint);
+    }
+
+    final softGlowPaint = Paint()
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24)
+      ..color = Colors.white.withValues(alpha: 0.05);
+    for (var i = 0; i < 3; i++) {
+      final x = size.width * (0.22 + i * 0.26) + math.sin(t * 2 + i) * 12;
+      final y = seaTop + size.height * (0.18 + i * 0.08);
       canvas.drawOval(
         Rect.fromCenter(
-          center: Offset(x, seaTop + size.height * 0.18 + i * 18),
-          width: 54,
-          height: 180,
+          center: Offset(x, y),
+          width: 96 + i * 18,
+          height: 44 + i * 6,
         ),
-        shimmerPaint,
+        softGlowPaint,
       );
     }
   }
