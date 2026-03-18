@@ -62,6 +62,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   double _oceanDragStartValue = 0;
   double _calendarDragStartY = 0;
   double _calendarDragStartValue = 0;
+  bool _gestureArmedFromOrb = false;
   int _cycleIndex = 0;
   double _lastValue = 0;
   double _orbFill = 0.24;
@@ -179,11 +180,17 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
         onHorizontalDragStart: _handlePanelDragStart,
         onHorizontalDragUpdate: _handlePanelDragUpdate,
         onHorizontalDragEnd: _handlePanelDragEnd,
-        onHorizontalDragCancel: () => _activeDragMode = _EdgeDragMode.none,
+        onHorizontalDragCancel: () {
+          _activeDragMode = _EdgeDragMode.none;
+          _gestureArmedFromOrb = false;
+        },
         onVerticalDragStart: _handleVerticalPanelDragStart,
         onVerticalDragUpdate: _handleVerticalPanelDragUpdate,
         onVerticalDragEnd: _handleVerticalPanelDragEnd,
-        onVerticalDragCancel: () => _activeDragMode = _EdgeDragMode.none,
+        onVerticalDragCancel: () {
+          _activeDragMode = _EdgeDragMode.none;
+          _gestureArmedFromOrb = false;
+        },
         child: AnimatedBuilder(
           animation: Listenable.merge(<Listenable>[
             _controller,
@@ -364,28 +371,54 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   }
 
   void _handlePanelDragStart(DragStartDetails details) {
-    final screenWidth = MediaQuery.sizeOf(context).width;
+    final screenSize = MediaQuery.sizeOf(context);
+    final screenWidth = screenSize.width;
     final isFromLeftEdge = details.localPosition.dx <= 30;
     final canResumeLeftPanel = _panelController.value > 0.02;
     final isFromRightEdge = details.localPosition.dx >= screenWidth - 30;
     final canResumeRightPanel = _oceanPanelController.value > 0.02;
+    final isFromOrbZone = _isInPrimaryTriggerZone(
+      details.localPosition,
+      screenSize,
+    );
 
     if (isFromLeftEdge || canResumeLeftPanel) {
       _activeDragMode = _EdgeDragMode.leftPanel;
+      _gestureArmedFromOrb = false;
       _panelDragStartX = details.globalPosition.dx;
       _panelDragStartValue = _panelController.value;
       return;
     }
     if (isFromRightEdge || canResumeRightPanel) {
       _activeDragMode = _EdgeDragMode.rightPanel;
+      _gestureArmedFromOrb = false;
+      _oceanDragStartX = details.globalPosition.dx;
+      _oceanDragStartValue = _oceanPanelController.value;
+      return;
+    }
+    if (isFromOrbZone) {
+      _activeDragMode = _EdgeDragMode.none;
+      _gestureArmedFromOrb = true;
+      _panelDragStartX = details.globalPosition.dx;
+      _panelDragStartValue = _panelController.value;
       _oceanDragStartX = details.globalPosition.dx;
       _oceanDragStartValue = _oceanPanelController.value;
       return;
     }
     _activeDragMode = _EdgeDragMode.none;
+    _gestureArmedFromOrb = false;
   }
 
   void _handlePanelDragUpdate(DragUpdateDetails details) {
+    if (_gestureArmedFromOrb && _activeDragMode == _EdgeDragMode.none) {
+      final deltaX = details.globalPosition.dx - _panelDragStartX;
+      if (deltaX.abs() >= 10) {
+        _activeDragMode = deltaX > 0
+            ? _EdgeDragMode.leftPanel
+            : _EdgeDragMode.rightPanel;
+        _gestureArmedFromOrb = false;
+      }
+    }
     if (_activeDragMode == _EdgeDragMode.leftPanel) {
       final deltaX = details.globalPosition.dx - _panelDragStartX;
       final nextValue = (_panelDragStartValue + deltaX / _panelRevealDistance)
@@ -440,16 +473,23 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
         break;
     }
     _activeDragMode = _EdgeDragMode.none;
+    _gestureArmedFromOrb = false;
   }
 
   void _handleVerticalPanelDragStart(DragStartDetails details) {
-    final screenHeight = MediaQuery.sizeOf(context).height;
+    final screenSize = MediaQuery.sizeOf(context);
+    final screenHeight = screenSize.height;
     final isFromBottomEdge = details.localPosition.dy >= screenHeight - 36;
     final canResumeCalendar = _calendarSheetController.value > 0.02;
-    if (!isFromBottomEdge && !canResumeCalendar) {
+    final isFromOrbZone = _isInPrimaryTriggerZone(
+      details.localPosition,
+      screenSize,
+    );
+    if (!isFromBottomEdge && !canResumeCalendar && !isFromOrbZone) {
       return;
     }
     _activeDragMode = _EdgeDragMode.bottomSheet;
+    _gestureArmedFromOrb = false;
     _calendarDragStartY = details.globalPosition.dy;
     _calendarDragStartValue = _calendarSheetController.value;
   }
@@ -483,6 +523,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       curve: Curves.easeOutCubic,
     );
     _activeDragMode = _EdgeDragMode.none;
+    _gestureArmedFromOrb = false;
   }
 
   void _handleReminderCountChanged(int count) {
@@ -495,6 +536,17 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   }
 
   static double _lerpDouble(double a, double b, double t) => a + (b - a) * t;
+
+  bool _isInPrimaryTriggerZone(Offset localPosition, Size size) {
+    final orbCenter = Offset(size.width / 2, size.height * 0.60);
+    final orbRadius = math.min(size.width * 0.235, 94.0);
+    final triggerRect = Rect.fromCenter(
+      center: Offset(orbCenter.dx, orbCenter.dy - orbRadius * 0.28),
+      width: orbRadius * 3.8,
+      height: orbRadius * 3.9,
+    );
+    return triggerRect.contains(localPosition);
+  }
 }
 
 class _ProfileEntry extends StatelessWidget {
@@ -1631,10 +1683,10 @@ class ReplicaCard extends StatelessWidget {
     }
     final hsl = HSLColor.fromColor(color);
     final softened = hsl
-        .withSaturation((hsl.saturation * 0.10).clamp(0.0, 1.0))
-        .withLightness((hsl.lightness + 0.10).clamp(0.0, 1.0))
+        .withSaturation((hsl.saturation * 0.24).clamp(0.0, 1.0))
+        .withLightness((hsl.lightness + 0.18).clamp(0.0, 1.0))
         .toColor();
-    return Color.lerp(softened, const Color(0xFFE5E7EB), 0.18)!;
+    return Color.lerp(softened, Colors.white, 0.10)!;
   }
 }
 
