@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -26,11 +27,14 @@ class DynamicIslandDripApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const MaterialApp(
+      title: '12:05',
       debugShowCheckedModeBanner: false,
       home: DynamicIslandDripPage(),
     );
   }
 }
+
+enum _EdgeDragMode { none, leftPanel, rightPanel, bottomSheet }
 
 class DynamicIslandDripPage extends StatefulWidget {
   const DynamicIslandDripPage({super.key});
@@ -42,14 +46,22 @@ class DynamicIslandDripPage extends StatefulWidget {
 class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     with TickerProviderStateMixin {
   static const double _panelRevealDistance = 106;
+  static const double _rightPanelRevealDistance = 118;
+  static const double _bottomSheetRevealDistance = 260;
   late final AnimationController _controller;
   late final AnimationController _panelController;
+  late final AnimationController _oceanPanelController;
+  late final AnimationController _calendarSheetController;
   late final List<double> _lastPhases;
   StreamSubscription<AccelerometerEvent>? _accelerometerSub;
   StreamSubscription<UserAccelerometerEvent>? _userAccelerometerSub;
-  bool _isTrackingPanelDrag = false;
+  _EdgeDragMode _activeDragMode = _EdgeDragMode.none;
   double _panelDragStartX = 0;
   double _panelDragStartValue = 0;
+  double _oceanDragStartX = 0;
+  double _oceanDragStartValue = 0;
+  double _calendarDragStartY = 0;
+  double _calendarDragStartValue = 0;
   int _cycleIndex = 0;
   double _lastValue = 0;
   double _orbFill = 0.24;
@@ -59,6 +71,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   double _tiltVelocity = 0;
   double _shakeKick = 0;
   double _sloshing = 0;
+  int _filledReminderCount = 0;
 
   @override
   void initState() {
@@ -71,6 +84,14 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       vsync: this,
       duration: const Duration(milliseconds: 260),
     );
+    _oceanPanelController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _calendarSheetController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
+    );
     _startMotionTracking();
     _controller =
         AnimationController(
@@ -82,7 +103,6 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
             final elapsed = _controller.lastElapsedDuration ?? Duration.zero;
             final dt = _frameDelta(elapsed);
             var nextCycleIndex = _cycleIndex;
-            var nextOrbFill = _orbFill;
             var needsUpdate = false;
 
             if (value < _lastValue) {
@@ -97,21 +117,26 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
               final phase = DynamicIslandDripPainter._phaseFor(value, spec);
               final threshold = i == activeStretchIndex ? 0.95 : 0.84;
               if (_crossedThreshold(_lastPhases[i], phase, threshold)) {
-                nextOrbFill = math.min(
-                  0.78,
-                  nextOrbFill + (i == activeStretchIndex ? 0.05 : 0.026),
-                );
                 needsUpdate = true;
               }
               _lastPhases[i] = phase;
             }
 
             _updateLiquidMotion(dt);
+            final targetOrbFill = _orbFillTarget;
+            final easedFill = _lerpDouble(
+              _orbFill,
+              targetOrbFill,
+              (1 - math.pow(0.92, dt * 60)).toDouble(),
+            );
+            if ((easedFill - _orbFill).abs() > 0.0008) {
+              needsUpdate = true;
+            }
 
             if (needsUpdate) {
               setState(() {
                 _cycleIndex = nextCycleIndex;
-                _orbFill = nextOrbFill;
+                _orbFill = easedFill.clamp(0.0, 1.0);
               });
             }
             _lastValue = value;
@@ -124,9 +149,23 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     _accelerometerSub?.cancel();
     _userAccelerometerSub?.cancel();
     _panelController.dispose();
+    _oceanPanelController.dispose();
+    _calendarSheetController.dispose();
     _controller.dispose();
     super.dispose();
   }
+
+  int get _successfulCheckins => math.min(_filledReminderCount, 10);
+
+  double get _orbFillTarget => _successfulCheckins * 0.1;
+
+  int get _earnedRainSeconds => _successfulCheckins * 30;
+
+  double get _userCollectedMl => _successfulCheckins * 120.0;
+
+  double get _totalOceanMl => _userCollectedMl;
+
+  double get _baikalEquivalent => _totalOceanMl / 23600000000000000.0;
 
   @override
   Widget build(BuildContext context) {
@@ -140,31 +179,67 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
         onHorizontalDragStart: _handlePanelDragStart,
         onHorizontalDragUpdate: _handlePanelDragUpdate,
         onHorizontalDragEnd: _handlePanelDragEnd,
-        onHorizontalDragCancel: () => _isTrackingPanelDrag = false,
+        onHorizontalDragCancel: () => _activeDragMode = _EdgeDragMode.none,
+        onVerticalDragStart: _handleVerticalPanelDragStart,
+        onVerticalDragUpdate: _handleVerticalPanelDragUpdate,
+        onVerticalDragEnd: _handleVerticalPanelDragEnd,
+        onVerticalDragCancel: () => _activeDragMode = _EdgeDragMode.none,
         child: AnimatedBuilder(
           animation: Listenable.merge(<Listenable>[
             _controller,
             _panelController,
+            _oceanPanelController,
+            _calendarSheetController,
           ]),
           builder: (context, _) {
-            final panelProgress = Curves.easeOutCubic.transform(
+            final leftPanelProgress = Curves.easeOutCubic.transform(
               _panelController.value,
             );
-            final sceneOffsetX = panelProgress * 22;
-            final sceneOpacity = 1 - panelProgress;
-            final sceneScale = 1 - panelProgress * 0.035;
+            final rightPanelProgress = Curves.easeOutCubic.transform(
+              _oceanPanelController.value,
+            );
+            final calendarProgress = Curves.easeOutCubic.transform(
+              _calendarSheetController.value,
+            );
+            final sceneCover = math.max(
+              leftPanelProgress,
+              math.max(rightPanelProgress, calendarProgress),
+            );
+            final sceneOffsetX =
+                leftPanelProgress * 22 - rightPanelProgress * 22;
+            final sceneOffsetY = -calendarProgress * 18;
+            final sceneOpacity = 1 - sceneCover * 0.96;
+            final sceneScale = 1 - sceneCover * 0.035;
 
             return LayoutBuilder(
               builder: (context, constraints) {
                 return Stack(
                   children: <Widget>[
-                    _SlideOutReplicaPanel(progress: panelProgress),
+                    _SlideOutReplicaPanel(
+                      progress: leftPanelProgress,
+                      onReminderCountChanged: _handleReminderCountChanged,
+                    ),
+                    _OceanStatsPanel(
+                      progress: rightPanelProgress,
+                      t: _controller.value,
+                      appName: '12:05',
+                      totalMl: _totalOceanMl,
+                      userMl: _userCollectedMl,
+                      baikalEquivalent: _baikalEquivalent,
+                    ),
+                    _CalendarBottomSheet(
+                      progress: calendarProgress,
+                      todayMl: _userCollectedMl,
+                    ),
                     IgnorePointer(
-                      ignoring: panelProgress > 0.08,
+                      ignoring:
+                          leftPanelProgress > 0.08 ||
+                          rightPanelProgress > 0.08 ||
+                          calendarProgress > 0.08,
                       child: Opacity(
                         opacity: sceneOpacity.clamp(0.0, 1.0),
                         child: Transform.translate(
-                          offset: Offset(sceneOffsetX, 0),
+                          offset: Offset(sceneOffsetX, sceneOffsetY),
                           child: Transform.scale(
                             scale: sceneScale,
                             alignment: Alignment.center,
@@ -184,6 +259,8 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
                                     liquidTilt: _liquidTilt,
                                     sloshing: _sloshing,
                                     color: Colors.black,
+                                    appName: '12:05',
+                                    earnedRainSeconds: _earnedRainSeconds,
                                   ),
                                   child: const SizedBox.expand(),
                                 ),
@@ -287,46 +364,137 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   }
 
   void _handlePanelDragStart(DragStartDetails details) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
     final isFromLeftEdge = details.localPosition.dx <= 30;
-    final canResumeOpenPanel = _panelController.value > 0.02;
-    _isTrackingPanelDrag = isFromLeftEdge || canResumeOpenPanel;
-    if (!_isTrackingPanelDrag) {
+    final canResumeLeftPanel = _panelController.value > 0.02;
+    final isFromRightEdge = details.localPosition.dx >= screenWidth - 30;
+    final canResumeRightPanel = _oceanPanelController.value > 0.02;
+
+    if (isFromLeftEdge || canResumeLeftPanel) {
+      _activeDragMode = _EdgeDragMode.leftPanel;
+      _panelDragStartX = details.globalPosition.dx;
+      _panelDragStartValue = _panelController.value;
       return;
     }
-    _panelDragStartX = details.globalPosition.dx;
-    _panelDragStartValue = _panelController.value;
+    if (isFromRightEdge || canResumeRightPanel) {
+      _activeDragMode = _EdgeDragMode.rightPanel;
+      _oceanDragStartX = details.globalPosition.dx;
+      _oceanDragStartValue = _oceanPanelController.value;
+      return;
+    }
+    _activeDragMode = _EdgeDragMode.none;
   }
 
   void _handlePanelDragUpdate(DragUpdateDetails details) {
-    if (!_isTrackingPanelDrag) {
+    if (_activeDragMode == _EdgeDragMode.leftPanel) {
+      final deltaX = details.globalPosition.dx - _panelDragStartX;
+      final nextValue = (_panelDragStartValue + deltaX / _panelRevealDistance)
+          .clamp(0.0, 1.0);
+      _panelController.value = nextValue;
       return;
     }
-
-    final deltaX = details.globalPosition.dx - _panelDragStartX;
-    final nextValue = (_panelDragStartValue + deltaX / _panelRevealDistance)
-        .clamp(0.0, 1.0);
-    _panelController.value = nextValue;
+    if (_activeDragMode == _EdgeDragMode.rightPanel) {
+      final deltaX = _oceanDragStartX - details.globalPosition.dx;
+      final nextValue =
+          (_oceanDragStartValue + deltaX / _rightPanelRevealDistance).clamp(
+            0.0,
+            1.0,
+          );
+      _oceanPanelController.value = nextValue;
+      return;
+    }
   }
 
   void _handlePanelDragEnd(DragEndDetails details) {
-    if (!_isTrackingPanelDrag) {
+    switch (_activeDragMode) {
+      case _EdgeDragMode.leftPanel:
+        final velocity = details.primaryVelocity ?? 0;
+        final target = velocity > 220
+            ? 1.0
+            : velocity < -220
+            ? 0.0
+            : (_panelController.value >= 0.52 ? 1.0 : 0.0);
+
+        _panelController.animateTo(
+          target,
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOutCubic,
+        );
+        break;
+      case _EdgeDragMode.rightPanel:
+        final velocity = details.primaryVelocity ?? 0;
+        final target = velocity < -220
+            ? 1.0
+            : velocity > 220
+            ? 0.0
+            : (_oceanPanelController.value >= 0.48 ? 1.0 : 0.0);
+
+        _oceanPanelController.animateTo(
+          target,
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+        );
+        break;
+      case _EdgeDragMode.none:
+      case _EdgeDragMode.bottomSheet:
+        break;
+    }
+    _activeDragMode = _EdgeDragMode.none;
+  }
+
+  void _handleVerticalPanelDragStart(DragStartDetails details) {
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final isFromBottomEdge = details.localPosition.dy >= screenHeight - 36;
+    final canResumeCalendar = _calendarSheetController.value > 0.02;
+    if (!isFromBottomEdge && !canResumeCalendar) {
       return;
     }
-    _isTrackingPanelDrag = false;
+    _activeDragMode = _EdgeDragMode.bottomSheet;
+    _calendarDragStartY = details.globalPosition.dy;
+    _calendarDragStartValue = _calendarSheetController.value;
+  }
 
+  void _handleVerticalPanelDragUpdate(DragUpdateDetails details) {
+    if (_activeDragMode != _EdgeDragMode.bottomSheet) {
+      return;
+    }
+    final deltaY = _calendarDragStartY - details.globalPosition.dy;
+    final nextValue =
+        (_calendarDragStartValue + deltaY / _bottomSheetRevealDistance).clamp(
+          0.0,
+          1.0,
+        );
+    _calendarSheetController.value = nextValue;
+  }
+
+  void _handleVerticalPanelDragEnd(DragEndDetails details) {
+    if (_activeDragMode != _EdgeDragMode.bottomSheet) {
+      return;
+    }
     final velocity = details.primaryVelocity ?? 0;
-    final target = velocity > 220
-        ? 1.0
-        : velocity < -220
+    final target = velocity < -220
         ? 0.0
-        : (_panelController.value >= 0.52 ? 1.0 : 0.0);
-
-    _panelController.animateTo(
+        : velocity > 220
+        ? 1.0
+        : (_calendarSheetController.value >= 0.42 ? 1.0 : 0.0);
+    _calendarSheetController.animateTo(
       target,
-      duration: const Duration(milliseconds: 240),
+      duration: const Duration(milliseconds: 280),
       curve: Curves.easeOutCubic,
     );
+    _activeDragMode = _EdgeDragMode.none;
   }
+
+  void _handleReminderCountChanged(int count) {
+    if (_filledReminderCount == count) {
+      return;
+    }
+    setState(() {
+      _filledReminderCount = count;
+    });
+  }
+
+  static double _lerpDouble(double a, double b, double t) => a + (b - a) * t;
 }
 
 class _ProfileEntry extends StatelessWidget {
@@ -396,9 +564,13 @@ class ProfilePlaceholderPage extends StatelessWidget {
 }
 
 class _SlideOutReplicaPanel extends StatefulWidget {
-  const _SlideOutReplicaPanel({required this.progress});
+  const _SlideOutReplicaPanel({
+    required this.progress,
+    required this.onReminderCountChanged,
+  });
 
   final double progress;
+  final ValueChanged<int> onReminderCountChanged;
 
   @override
   State<_SlideOutReplicaPanel> createState() => _SlideOutReplicaPanelState();
@@ -900,6 +1072,9 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
       _customReminderDescriptions[targetIndex] = descriptionController.text
           .trim();
     });
+    widget.onReminderCountChanged(
+      _customReminderTitles.whereType<String>().length,
+    );
   }
 
   String _displayTitleFor(int index) {
@@ -921,8 +1096,7 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
   bool _displayPlaceholderFor(int index) =>
       _customReminderTitles[index] == null;
 
-  bool _displaySaturationFor(int index) =>
-      index < 4 || _customReminderTitles[index] != null;
+  bool _displaySaturationFor(int index) => _customReminderTitles[index] != null;
 
   @override
   Widget build(BuildContext context) {
@@ -1456,10 +1630,11 @@ class ReplicaCard extends StatelessWidget {
       return color;
     }
     final hsl = HSLColor.fromColor(color);
-    return hsl
-        .withSaturation((hsl.saturation * 0.18).clamp(0.0, 1.0))
-        .withLightness((hsl.lightness + 0.06).clamp(0.0, 1.0))
+    final softened = hsl
+        .withSaturation((hsl.saturation * 0.10).clamp(0.0, 1.0))
+        .withLightness((hsl.lightness + 0.10).clamp(0.0, 1.0))
         .toColor();
+    return Color.lerp(softened, const Color(0xFFE5E7EB), 0.18)!;
   }
 }
 
@@ -1604,6 +1779,481 @@ class VisualScrollRail extends StatelessWidget {
   }
 }
 
+class _LiquidGlassCard extends StatelessWidget {
+  const _LiquidGlassCard({
+    required this.child,
+    this.padding = const EdgeInsets.all(18),
+    this.radius = 28,
+  });
+
+  final Widget child;
+  final EdgeInsets padding;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(radius),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.38),
+              width: 1.2,
+            ),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: <Color>[
+                Colors.white.withValues(alpha: 0.32),
+                Colors.white.withValues(alpha: 0.12),
+              ],
+            ),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.10),
+                blurRadius: 30,
+                offset: const Offset(0, 20),
+              ),
+            ],
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+class _OceanStatsPanel extends StatelessWidget {
+  const _OceanStatsPanel({
+    required this.progress,
+    required this.t,
+    required this.appName,
+    required this.totalMl,
+    required this.userMl,
+    required this.baikalEquivalent,
+  });
+
+  final double progress;
+  final double t;
+  final String appName;
+  final double totalMl;
+  final double userMl;
+  final double baikalEquivalent;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.sizeOf(context);
+    final safeTop = MediaQuery.paddingOf(context).top;
+    final reveal = Curves.easeOutCubic.transform(progress);
+    final panelOffset = (1 - reveal) * media.width * 0.78;
+
+    return Positioned.fill(
+      child: IgnorePointer(
+        ignoring: progress < 0.06,
+        child: Opacity(
+          opacity: reveal,
+          child: Transform.translate(
+            offset: Offset(panelOffset, 0),
+            child: Container(
+              color: const Color(0xFF051B2E),
+              child: Stack(
+                children: <Widget>[
+                  CustomPaint(
+                    painter: _OceanScenePainter(t: t),
+                    child: const SizedBox.expand(),
+                  ),
+                  Positioned(
+                    left: 24,
+                    right: 24,
+                    top: safeTop + 24,
+                    child: _LiquidGlassCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            appName,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white.withValues(alpha: 0.82),
+                              letterSpacing: 2.0,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            '已有${totalMl.toStringAsFixed(0)}ml汇入大海，其中你积攒了${userMl.toStringAsFixed(0)}ml',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              height: 1.35,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            '当前总量相当于${baikalEquivalent.toStringAsPrecision(1)}个贝加尔湖',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.white.withValues(alpha: 0.72),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OceanScenePainter extends CustomPainter {
+  const _OceanScenePainter({required this.t});
+
+  final double t;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            Color(0xFF0A2235),
+            Color(0xFF0A2740),
+            Color(0xFF061B2B),
+          ],
+        ).createShader(rect),
+    );
+
+    final cloudPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.10)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 22);
+    for (var i = 0; i < 4; i++) {
+      final dx = size.width * (0.12 + i * 0.22);
+      final dy = size.height * (0.11 + math.sin(t * math.pi * 2 + i) * 0.008);
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(dx, dy),
+          width: size.width * 0.18,
+          height: size.height * 0.05,
+        ),
+        cloudPaint,
+      );
+    }
+
+    final seaTop = size.height * 0.34;
+    final seaRect = Rect.fromLTWH(0, seaTop, size.width, size.height - seaTop);
+    canvas.drawRect(
+      seaRect,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            Color(0xFF0E3E67),
+            Color(0xFF0A2C4B),
+            Color(0xFF071C31),
+          ],
+        ).createShader(seaRect),
+    );
+
+    final wavePath = Path()..moveTo(0, seaTop);
+    for (double x = 0; x <= size.width; x += 6) {
+      final progress = x / size.width;
+      final y =
+          seaTop +
+          math.sin(progress * math.pi * 2.3 + t * math.pi * 2) * 8 +
+          math.sin(progress * math.pi * 5.6 - t * math.pi * 1.6) * 4;
+      wavePath.lineTo(x, y);
+    }
+    wavePath
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(
+      wavePath,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            Color(0xC02D7FC6),
+            Color(0xE0104B88),
+            Color(0xF0062746),
+          ],
+        ).createShader(seaRect),
+    );
+
+    final shimmerPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: <Color>[
+          Colors.white.withValues(alpha: 0.20),
+          Colors.white.withValues(alpha: 0.0),
+        ],
+      ).createShader(seaRect)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
+    for (var i = 0; i < 5; i++) {
+      final x = size.width * (0.14 + i * 0.18) + math.sin(t * 4 + i) * 18;
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(x, seaTop + size.height * 0.18 + i * 18),
+          width: 54,
+          height: 180,
+        ),
+        shimmerPaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _OceanScenePainter oldDelegate) =>
+      oldDelegate.t != t;
+}
+
+class _CalendarBottomSheet extends StatefulWidget {
+  const _CalendarBottomSheet({required this.progress, required this.todayMl});
+
+  final double progress;
+  final double todayMl;
+
+  @override
+  State<_CalendarBottomSheet> createState() => _CalendarBottomSheetState();
+}
+
+class _CalendarBottomSheetState extends State<_CalendarBottomSheet> {
+  late final PageController _pageController;
+  static const int _basePage = 120;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _basePage);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.sizeOf(context);
+    final reveal = Curves.easeOutCubic.transform(widget.progress);
+    final offsetY = (1 - reveal) * media.height * 0.82;
+    final monthNow = DateTime.now();
+
+    return Positioned.fill(
+      child: IgnorePointer(
+        ignoring: widget.progress < 0.05,
+        child: Opacity(
+          opacity: reveal,
+          child: Transform.translate(
+            offset: Offset(0, offsetY),
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Container(
+                height: media.height * 0.72,
+                margin: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.22),
+                      blurRadius: 36,
+                      offset: const Offset(0, 18),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(30),
+                  child: PageView.builder(
+                    controller: _pageController,
+                    itemBuilder: (context, index) {
+                      final delta = index - _basePage;
+                      final month = DateTime(
+                        monthNow.year,
+                        monthNow.month + delta,
+                      );
+                      return _MonthCalendarView(
+                        month: month,
+                        todayMl: widget.todayMl,
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MonthCalendarView extends StatelessWidget {
+  const _MonthCalendarView({required this.month, required this.todayMl});
+
+  final DateTime month;
+  final double todayMl;
+
+  @override
+  Widget build(BuildContext context) {
+    final first = DateTime(month.year, month.month, 1);
+    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+    final leading = (first.weekday + 6) % 7;
+    final total = leading + daysInMonth;
+    final rows = (total / 7).ceil();
+    final monthLabel =
+        '${month.year}.${month.month.toString().padLeft(2, '0')}';
+
+    return Container(
+      color: Colors.white,
+      child: Stack(
+        children: <Widget>[
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Opacity(
+                opacity: 0.05,
+                child: GridView.builder(
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(18, 110, 18, 18),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 7,
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    childAspectRatio: 0.82,
+                  ),
+                  itemCount: 28,
+                  itemBuilder: (context, index) {
+                    return Center(
+                      child: Text(
+                        '${(index % 31) + 1}',
+                        style: const TextStyle(
+                          fontSize: 48,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 18,
+            top: 18,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                monthLabel,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          GridView.builder(
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(18, 110, 18, 18),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 7,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 0.82,
+            ),
+            itemCount: rows * 7,
+            itemBuilder: (context, index) {
+              final dayNumber = index - leading + 1;
+              if (dayNumber < 1 || dayNumber > daysInMonth) {
+                return const SizedBox.shrink();
+              }
+
+              final isToday =
+                  month.year == DateTime.now().year &&
+                  month.month == DateTime.now().month &&
+                  dayNumber == DateTime.now().day;
+              final dailyMl = isToday
+                  ? todayMl
+                  : ((dayNumber * 37 + month.month * 19) % 120).toDouble();
+              final waterLevel = (dailyMl / 120).clamp(0.0, 1.0);
+
+              return _LiquidGlassCard(
+                radius: 18,
+                padding: EdgeInsets.zero,
+                child: Stack(
+                  children: <Widget>[
+                    Positioned.fill(
+                      child: Align(
+                        alignment: Alignment.bottomCenter,
+                        child: FractionallySizedBox(
+                          heightFactor: waterLevel,
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: <Color>[
+                                  Color(0x9A8ED1FF),
+                                  Color(0xCC5CA8FF),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.vertical(
+                                top: Radius.circular(16),
+                                bottom: Radius.circular(18),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 10,
+                      top: 8,
+                      child: Text(
+                        '$dayNumber',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: isToday ? Colors.black : Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class DynamicIslandDripPainter extends CustomPainter {
   DynamicIslandDripPainter({
     required this.t,
@@ -1614,6 +2264,8 @@ class DynamicIslandDripPainter extends CustomPainter {
     required this.liquidTilt,
     required this.sloshing,
     required this.color,
+    required this.appName,
+    required this.earnedRainSeconds,
   });
 
   final double t;
@@ -1624,6 +2276,8 @@ class DynamicIslandDripPainter extends CustomPainter {
   final double liquidTilt;
   final double sloshing;
   final Color color;
+  final String appName;
+  final int earnedRainSeconds;
 
   static const Color _orbBlueTop = Color(0xFF8CCCFF);
   static const Color _orbBlueBottom = Color(0xFF4A93FF);
@@ -2166,16 +2820,32 @@ class DynamicIslandDripPainter extends CustomPainter {
       center,
       radius,
       Paint()
-        ..shader = const RadialGradient(
+        ..shader = RadialGradient(
+          center: const Alignment(-0.18, -0.22),
           colors: <Color>[
-            Color(0x33FFFFFF),
-            Color(0x14FFFFFF),
-            Color(0x08FFFFFF),
+            Colors.white.withValues(alpha: 0.40),
+            Colors.white.withValues(alpha: 0.18),
+            Colors.white.withValues(alpha: 0.06),
           ],
           stops: <double>[0.0, 0.62, 1.0],
         ).createShader(orbRect)
         ..style = PaintingStyle.fill
         ..isAntiAlias = true,
+    );
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Colors.white.withValues(alpha: 0.24),
+            Colors.white.withValues(alpha: 0.03),
+          ],
+        ).createShader(orbRect)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4,
     );
 
     _drawOrbLiquid(canvas, center: center, radius: radius);
@@ -2242,9 +2912,9 @@ class DynamicIslandDripPainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: <Color>[
-            _orbBlueTop.withAlpha(224),
-            _orbBlueBottom.withAlpha(236),
-            _orbBlueBottom,
+            _orbBlueTop.withValues(alpha: 0.84),
+            _orbBlueBottom.withValues(alpha: 0.92),
+            _orbBlueBottom.withValues(alpha: 0.96),
           ],
         ).createShader(orbRect)
         ..style = PaintingStyle.fill,
@@ -2273,7 +2943,7 @@ class DynamicIslandDripPainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.8
-        ..color = _orbBlueTop.withAlpha(220),
+        ..color = Colors.white.withValues(alpha: 0.54),
     );
 
     canvas.drawCircle(
@@ -2282,7 +2952,7 @@ class DynamicIslandDripPainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.9
-        ..color = const Color(0x52FFFFFF),
+        ..color = Colors.white.withValues(alpha: 0.28),
     );
 
     canvas.drawOval(
@@ -2319,6 +2989,47 @@ class DynamicIslandDripPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.0
         ..color = const Color(0x3FFFFFFF),
+    );
+
+    _drawOrbLabel(canvas, center: center, radius: radius);
+  }
+
+  void _drawOrbLabel(
+    Canvas canvas, {
+    required Offset center,
+    required double radius,
+  }) {
+    final titlePainter = TextPainter(
+      text: TextSpan(
+        text: appName,
+        style: TextStyle(
+          fontSize: radius * 0.19,
+          fontWeight: FontWeight.w800,
+          color: Colors.white.withValues(alpha: 0.82),
+          letterSpacing: 1.8,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: radius * 1.3);
+    final subPainter = TextPainter(
+      text: TextSpan(
+        text: '雨滴时长 ${earnedRainSeconds}s',
+        style: TextStyle(
+          fontSize: radius * 0.09,
+          fontWeight: FontWeight.w600,
+          color: Colors.white.withValues(alpha: 0.68),
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: radius * 1.45);
+
+    titlePainter.paint(
+      canvas,
+      Offset(center.dx - titlePainter.width / 2, center.dy - radius * 0.10),
+    );
+    subPainter.paint(
+      canvas,
+      Offset(center.dx - subPainter.width / 2, center.dy + radius * 0.06),
     );
   }
 
@@ -2642,7 +3353,9 @@ class DynamicIslandDripPainter extends CustomPainter {
         oldDelegate.orbFill != orbFill ||
         oldDelegate.liquidTilt != liquidTilt ||
         oldDelegate.sloshing != sloshing ||
-        oldDelegate.color != color;
+        oldDelegate.color != color ||
+        oldDelegate.appName != appName ||
+        oldDelegate.earnedRainSeconds != earnedRainSeconds;
   }
 }
 
