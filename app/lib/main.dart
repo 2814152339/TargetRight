@@ -1884,12 +1884,6 @@ class _OceanLiquidGlassCard extends StatelessWidget {
       child: Stack(
         children: <Widget>[
           Positioned.fill(
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 4.5, sigmaY: 4.5),
-              child: const SizedBox.expand(),
-            ),
-          ),
-          Positioned.fill(
             child: CustomPaint(
               painter: _OceanGlassShellPainter(t: t, radius: _radius),
             ),
@@ -1915,72 +1909,47 @@ class _OceanGlassShellPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
     final outer = RRect.fromRectAndRadius(rect, Radius.circular(radius));
-    final shellOuter = RRect.fromRectAndRadius(
-      rect.deflate(1.0),
-      Radius.circular(radius - 1.0),
+    final edgeOuter = RRect.fromRectAndRadius(
+      rect.deflate(0.8),
+      Radius.circular(radius - 0.8),
     );
-    final shellInner = RRect.fromRectAndRadius(
-      rect.deflate(5.5),
-      Radius.circular(radius - 5.5),
+    final edgeInner = RRect.fromRectAndRadius(
+      rect.deflate(12.0),
+      Radius.circular(radius - 12.0),
     );
-    final shellPath = Path.combine(
+    final edgeBand = Path.combine(
       PathOperation.difference,
-      Path()..addRRect(shellOuter),
-      Path()..addRRect(shellInner),
+      Path()..addRRect(edgeOuter),
+      Path()..addRRect(edgeInner),
     );
     canvas.drawRRect(
       outer,
       Paint()
-        ..color = Colors.white.withValues(alpha: 0.012)
+        ..color = Colors.white.withValues(alpha: 0.008)
         ..style = PaintingStyle.fill,
     );
-    _paintRefractionRibbon(
+    _paintEdgeRefraction(
       canvas,
       size,
-      Rect.fromLTWH(
-        -size.width * 0.08,
-        -size.height * 0.01,
-        size.width * 0.22,
-        size.height * 1.02,
-      ),
-      scaleX: 1.22,
-      scaleY: 1.08,
-      shiftX: -18,
-      shiftY: -4,
-      tint: const Color(0x2CA8DCFF),
+      edgeBand,
+      scaleX: 1.12,
+      scaleY: 1.06,
+      shiftX: 10,
+      shiftY: -6,
+      tint: const Color(0x1894D8FF),
     );
-    _paintRefractionRibbon(
+    _paintEdgeRefraction(
       canvas,
       size,
-      Rect.fromLTWH(
-        size.width * 0.86,
-        -size.height * 0.01,
-        size.width * 0.22,
-        size.height * 1.02,
-      ),
-      scaleX: 1.24,
-      scaleY: 1.08,
-      shiftX: 20,
-      shiftY: -4,
-      tint: const Color(0x2694D9FF),
+      edgeBand,
+      scaleX: 1.06,
+      scaleY: 1.10,
+      shiftX: -8,
+      shiftY: -12,
+      tint: const Color(0x10D5F2FF),
     );
-    _paintRefractionRibbon(
-      canvas,
-      size,
-      Rect.fromLTWH(
-        size.width * 0.05,
-        -size.height * 0.06,
-        size.width * 0.90,
-        size.height * 0.22,
-      ),
-      scaleX: 1.08,
-      scaleY: 1.20,
-      shiftX: 0,
-      shiftY: -10,
-      tint: const Color(0x1ED6F3FF),
-    );
-    canvas.drawPath(
-      shellPath,
+    canvas.drawRRect(
+      outer,
       Paint()
         ..shader = LinearGradient(
           begin: Alignment.topLeft,
@@ -1988,11 +1957,19 @@ class _OceanGlassShellPainter extends CustomPainter {
           colors: <Color>[
             Colors.white.withValues(alpha: 0.28),
             Colors.white.withValues(alpha: 0.06),
-            const Color(0x149DD8FF),
-            Colors.white.withValues(alpha: 0.04),
+            Colors.white.withValues(alpha: 0.03),
+            const Color(0x1A90D4FF),
           ],
-          stops: const <double>[0.0, 0.24, 0.72, 1.0],
-        ).createShader(rect),
+          stops: const <double>[0.0, 0.18, 0.72, 1.0],
+        ).createShader(rect)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0,
+    );
+    canvas.drawPath(
+      edgeBand,
+      Paint()
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5)
+        ..color = Colors.white.withValues(alpha: 0.022),
     );
     canvas.drawArc(
       Rect.fromLTWH(
@@ -2007,8 +1984,8 @@ class _OceanGlassShellPainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
-        ..strokeWidth = 1.35
-        ..color = Colors.white.withValues(alpha: 0.46),
+        ..strokeWidth = 1.15
+        ..color = Colors.white.withValues(alpha: 0.38),
     );
     canvas.drawArc(
       Rect.fromLTWH(
@@ -2023,15 +2000,8 @@ class _OceanGlassShellPainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
-        ..strokeWidth = 0.95
-        ..color = Colors.white.withValues(alpha: 0.30),
-    );
-    canvas.drawRRect(
-      outer,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0
-        ..color = Colors.white.withValues(alpha: 0.56),
+        ..strokeWidth = 0.90
+        ..color = Colors.white.withValues(alpha: 0.22),
     );
     final shadowRect = Rect.fromCenter(
       center: Offset(size.width * 0.5, size.height + 8),
@@ -2050,25 +2020,21 @@ class _OceanGlassShellPainter extends CustomPainter {
     );
   }
 
-  void _paintRefractionRibbon(
+  void _paintEdgeRefraction(
     Canvas canvas,
     Size size,
-    Rect rect, {
+    Path edgeBand, {
     required double scaleX,
     required double scaleY,
     required double shiftX,
     required double shiftY,
     required Color tint,
   }) {
-    final ribbon = RRect.fromRectAndRadius(
-      rect,
-      Radius.circular(math.min(rect.width, rect.height) * 0.48),
-    );
     canvas.save();
-    canvas.clipRRect(ribbon);
-    canvas.translate(rect.center.dx, rect.center.dy);
+    canvas.clipPath(edgeBand);
+    canvas.translate(size.width * 0.5, size.height * 0.5);
     canvas.scale(scaleX, scaleY);
-    canvas.translate(-rect.center.dx + shiftX, -rect.center.dy + shiftY);
+    canvas.translate(-size.width * 0.5 + shiftX, -size.height * 0.5 + shiftY);
     _paintOceanRefraction(canvas, size, tint);
     canvas.restore();
   }
