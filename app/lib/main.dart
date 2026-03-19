@@ -3289,6 +3289,25 @@ class DynamicIslandDripPainter extends CustomPainter {
         ..isAntiAlias = true,
     );
     canvas.save();
+    canvas.clipPath(outerPath);
+    canvas.drawCircle(
+      Offset(center.dx, center.dy + radius * 0.36),
+      radius * 0.96,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(0.0, 0.78),
+          colors: <Color>[
+            const Color(0x00000000),
+            const Color(0x1A8FBFFF),
+            const Color(0x2E9CC8FF),
+          ],
+          stops: const <double>[0.0, 0.62, 1.0],
+        ).createShader(orbRect)
+        ..style = PaintingStyle.fill
+        ..isAntiAlias = true,
+    );
+    canvas.restore();
+    canvas.save();
     canvas.clipRect(
       Rect.fromLTWH(center.dx - radius, center.dy, radius * 2, radius),
     );
@@ -3309,6 +3328,21 @@ class DynamicIslandDripPainter extends CustomPainter {
         ..isAntiAlias = true,
     );
     canvas.restore();
+    canvas.drawCircle(
+      center,
+      radius - 2.2,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            Colors.white.withValues(alpha: 0.05),
+            const Color(0x1E9AC7FF),
+          ],
+        ).createShader(orbRect)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.1,
+    );
 
     _drawOrbLiquid(canvas, center: center, radius: radius);
   }
@@ -3402,18 +3436,50 @@ class DynamicIslandDripPainter extends CustomPainter {
       center,
       radius,
       Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Colors.white.withValues(alpha: 0.76),
+            const Color(0xB7E1F0FF),
+          ],
+        ).createShader(Rect.fromCircle(center: center, radius: radius))
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0
-        ..color = Colors.white.withValues(alpha: 0.70),
+        ..strokeWidth = 2.1,
     );
 
     canvas.drawCircle(
       center,
       radius - 1.2,
       Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            Colors.white.withValues(alpha: 0.44),
+            const Color(0x6EA9CCFF),
+          ],
+        ).createShader(Rect.fromCircle(center: center, radius: radius))
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0
-        ..color = Colors.white.withValues(alpha: 0.34),
+        ..strokeWidth = 1.15,
+    );
+
+    canvas.drawArc(
+      Rect.fromCenter(
+        center: Offset(
+          center.dx - radius * 0.02 + motionOffset.dx * 0.55,
+          center.dy - radius * 0.06 + motionOffset.dy * 0.25,
+        ),
+        width: radius * 1.72,
+        height: radius * 1.68,
+      ),
+      math.pi * 1.12,
+      math.pi * 0.52,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.25
+        ..color = Colors.white.withValues(alpha: 0.42),
     );
 
     canvas.drawArc(
@@ -3430,8 +3496,26 @@ class DynamicIslandDripPainter extends CustomPainter {
       false,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0
-        ..color = const Color(0x3FFFFFFF),
+        ..strokeWidth = 1.05
+        ..color = const Color(0x54FFFFFF),
+    );
+
+    canvas.drawArc(
+      Rect.fromCenter(
+        center: Offset(
+          center.dx + radius * 0.02 + motionOffset.dx * 0.4,
+          center.dy + radius * 0.18 + motionOffset.dy * 0.35,
+        ),
+        width: radius * 1.66,
+        height: radius * 1.22,
+      ),
+      math.pi * 0.20,
+      math.pi * 0.60,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.3
+        ..color = const Color(0x78E9F6FF),
     );
 
     _drawOrbLabel(canvas, center: center, radius: radius);
