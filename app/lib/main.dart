@@ -1842,38 +1842,31 @@ class _LiquidGlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: padding,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.18),
-            borderRadius: BorderRadius.circular(radius),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.38),
-              width: 1.2,
-            ),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: <Color>[
-                Colors.white.withValues(alpha: 0.32),
-                Colors.white.withValues(alpha: 0.12),
-              ],
-            ),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.10),
-                blurRadius: 30,
-                offset: const Offset(0, 20),
-              ),
-            ],
-          ),
-          child: child,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.34),
+          width: 1.0,
         ),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Colors.white.withValues(alpha: 0.28),
+            Colors.white.withValues(alpha: 0.10),
+          ],
+        ),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 22,
+            offset: const Offset(0, 14),
+          ),
+        ],
       ),
+      child: Padding(padding: padding, child: child),
     );
   }
 }
@@ -1938,7 +1931,7 @@ class _OceanGlassShellPainter extends CustomPainter {
     canvas.drawRRect(
       outer,
       Paint()
-        ..color = Colors.white.withValues(alpha: 0.030)
+        ..color = Colors.white.withValues(alpha: 0.012)
         ..style = PaintingStyle.fill,
     );
     _paintRefractionRibbon(
@@ -1998,9 +1991,9 @@ class _OceanGlassShellPainter extends CustomPainter {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: <Color>[
-            Colors.white.withValues(alpha: 0.72),
-            Colors.white.withValues(alpha: 0.18),
-            const Color(0x3EA3DCFF),
+            Colors.white.withValues(alpha: 0.58),
+            Colors.white.withValues(alpha: 0.14),
+            const Color(0x269DD8FF),
             Colors.white.withValues(alpha: 0.10),
           ],
           stops: const <double>[0.0, 0.24, 0.72, 1.0],
@@ -2083,35 +2076,36 @@ class _OceanGlassShellPainter extends CustomPainter {
     canvas.translate(-rect.center.dx + shiftX, -rect.center.dy + shiftY);
     _paintOceanRefraction(canvas, size, tint);
     canvas.restore();
-    canvas.drawRRect(
-      ribbon,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: <Color>[
-            Colors.white.withValues(alpha: 0.12),
-            tint.withValues(alpha: 0.10),
-            Colors.transparent,
-          ],
-          stops: const <double>[0.0, 0.48, 1.0],
-        ).createShader(rect),
-    );
   }
 
   void _paintOceanRefraction(Canvas canvas, Size size, Color tint) {
+    final rect = Offset.zero & size;
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            Color(0xFF0A2235),
+            Color(0xFF0A2740),
+            Color(0xFF061B2B),
+          ],
+        ).createShader(rect),
+    );
+
     final seaTop = size.height * 0.62;
     final seaRect = Rect.fromLTWH(0, seaTop, size.width, size.height - seaTop);
     canvas.drawRect(
       seaRect,
       Paint()
-        ..shader = LinearGradient(
+        ..shader = const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: <Color>[
-            tint.withValues(alpha: 0.20),
-            tint.withValues(alpha: 0.30),
-            const Color(0x33072235),
+            Color(0xFF0E3E67),
+            Color(0xFF0A2C4B),
+            Color(0xFF071C31),
           ],
         ).createShader(seaRect),
     );
@@ -2120,8 +2114,8 @@ class _OceanGlassShellPainter extends CustomPainter {
       final progress = x / size.width;
       final y =
           seaTop +
-          math.sin(progress * math.pi * 2.5 + t * math.pi * 2) * 6 +
-          math.sin(progress * math.pi * 5.2 - t * math.pi * 1.4) * 3;
+          math.sin(progress * math.pi * 2.3 + t * math.pi * 2) * 8 +
+          math.sin(progress * math.pi * 5.6 - t * math.pi * 1.6) * 4;
       wavePath.lineTo(x, y);
     }
     wavePath
@@ -2130,8 +2124,40 @@ class _OceanGlassShellPainter extends CustomPainter {
       ..close();
     canvas.drawPath(
       wavePath,
-      Paint()..color = Colors.white.withValues(alpha: 0.10),
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            Color(0xC02D7FC6),
+            Color(0xE0104B88),
+            Color(0xF0062746),
+          ],
+        ).createShader(seaRect),
     );
+
+    final causticPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10)
+      ..color = tint.withValues(alpha: 0.16);
+    for (var i = 0; i < 2; i++) {
+      final startX =
+          size.width * (0.18 + i * 0.34) + math.sin(t * 1.4 + i) * 10;
+      final startY = seaTop + size.height * (0.08 + i * 0.06);
+      final endX = startX + 64 + math.cos(t * 1.1 + i) * 18;
+      final endY = startY + 38 + math.sin(t * 1.4 + i) * 12;
+      causticPaint.strokeWidth = 4.6 + i * 0.8;
+      final path = Path()
+        ..moveTo(startX, startY)
+        ..quadraticBezierTo(
+          (startX + endX) / 2 + math.cos(t * 1.8 + i) * 8,
+          (startY + endY) / 2 - 16,
+          endX,
+          endY,
+        );
+      canvas.drawPath(path, causticPaint);
+    }
   }
 
   @override
@@ -2414,8 +2440,8 @@ class _CalendarBottomSheetState extends State<_CalendarBottomSheet> {
     final reveal = Curves.easeOutCubic.transform(widget.progress);
     final offsetY = (1 - reveal) * media.height * 0.82;
     final monthNow = DateTime.now();
-    final optimizedTilt = (widget.liquidTilt * 20).round() / 20;
-    final optimizedSloshing = (widget.sloshing * 20).round() / 20;
+    final optimizedTilt = (widget.liquidTilt * 10).round() / 10;
+    final optimizedSloshing = (widget.sloshing * 10).round() / 10;
 
     return Positioned.fill(
       child: IgnorePointer(
@@ -2603,8 +2629,8 @@ class _CalendarWaterPainter extends CustomPainter {
       ..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(18)));
     final usableHeight = size.height - size.height * 0.06;
     final liquidTopBase = size.height - usableHeight * waterLevel;
-    final tiltHeight = liquidTilt * size.height * 0.04;
-    final sloshHeight = sloshing * size.height * 0.045;
+    final tiltHeight = liquidTilt * size.height * 0.065;
+    final sloshHeight = sloshing * size.height * 0.075;
     final minSurfaceY = size.height * 0.06;
     final maxSurfaceY = size.height * 0.90;
     final overscan = size.width * 0.26;
@@ -2613,7 +2639,7 @@ class _CalendarWaterPainter extends CustomPainter {
       ..moveTo(-overscan, size.height + overscan)
       ..lineTo(-overscan, liquidTopBase);
     var isFirstPoint = true;
-    for (double x = -overscan; x <= size.width + overscan; x += 3.0) {
+    for (double x = -overscan; x <= size.width + overscan; x += 4.0) {
       final progress = (x / size.width).clamp(0.0, 1.0);
       final edgeFalloff = math.sin(progress * math.pi);
       final slope = ((progress - 0.5) * 2) * tiltHeight;
