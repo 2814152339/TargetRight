@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jinshi_checkin/main.dart';
 
 void main() {
-  testWidgets('renders dynamic island drip animation', (
+  testWidgets('renders dynamic island drip animation shell', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(const DynamicIslandDripApp());
