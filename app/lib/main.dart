@@ -69,6 +69,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   Duration _lastElapsed = Duration.zero;
   double _targetTilt = 0;
   double _liquidTilt = 0;
+  double _shadowTilt = 0;
   double _tiltVelocity = 0;
   double _shakeKick = 0;
   double _sloshing = 0;
@@ -237,6 +238,8 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
                     _CalendarBottomSheet(
                       progress: calendarProgress,
                       todayMl: _userCollectedMl,
+                      liquidTilt: _liquidTilt,
+                      sloshing: _sloshing,
                     ),
                     IgnorePointer(
                       ignoring:
@@ -264,6 +267,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
                                     ),
                                     orbFill: _orbFill,
                                     liquidTilt: _liquidTilt,
+                                    shadowTilt: _shadowTilt,
                                     sloshing: _sloshing,
                                     color: Colors.black,
                                     appName: '12:05',
@@ -275,7 +279,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
                                   left: 16,
                                   top: safeTop + 18,
                                   child: _ProfileEntry(
-                                    nickname: '用户昵称',
+                                    nickname: '鐢ㄦ埛鏄电О',
                                     onTap: () {
                                       Navigator.of(context).push(
                                         MaterialPageRoute<void>(
@@ -365,6 +369,13 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     _tiltVelocity *= frameDamping;
     _liquidTilt += _tiltVelocity * dt * 60;
     _liquidTilt = _liquidTilt.clamp(-1.15, 1.15).toDouble();
+
+    final shadowFollow = 1 - math.pow(0.86, dt * 60).toDouble();
+    _shadowTilt = _lerpDouble(
+      _shadowTilt,
+      _targetTilt,
+      shadowFollow,
+    ).clamp(-1.0, 1.0);
 
     final sloshDamping = math.pow(0.92, dt * 60).toDouble();
     _sloshing *= sloshDamping;
@@ -548,7 +559,7 @@ class _ProfileEntry extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Text(
-                '你好,$nickname',
+                '浣犲ソ,$nickname',
                 style: const TextStyle(
                   fontSize: 18,
                   color: Colors.black,
@@ -574,11 +585,11 @@ class ProfilePlaceholderPage extends StatelessWidget {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
-        title: const Text('我的'),
+        title: const Text('\u6211\u7684'),
       ),
       body: const Center(
         child: Text(
-          '我的页面待设计',
+          '\u6211\u7684\u9875\u9762\u5f85\u8bbe\u8ba1',
           style: TextStyle(fontSize: 18, color: Colors.black),
         ),
       ),
@@ -1851,6 +1862,379 @@ class _LiquidGlassCard extends StatelessWidget {
   }
 }
 
+class _OceanLiquidGlassCard extends StatelessWidget {
+  const _OceanLiquidGlassCard({required this.child, required this.t});
+
+  final Widget child;
+  final double t;
+  static const double _radius = 34;
+  static const EdgeInsets _padding = EdgeInsets.fromLTRB(22, 18, 22, 18);
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(_radius),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 7, sigmaY: 7),
+        child: CustomPaint(
+          painter: _OceanGlassShellPainter(t: t, radius: _radius),
+          child: Padding(padding: _padding, child: child),
+        ),
+      ),
+    );
+  }
+}
+
+class _OceanGlassShellPainter extends CustomPainter {
+  const _OceanGlassShellPainter({required this.t, required this.radius});
+
+  final double t;
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final outer = RRect.fromRectAndRadius(rect, Radius.circular(radius));
+    final inner = RRect.fromRectAndRadius(
+      rect.deflate(20),
+      Radius.circular(radius - 20),
+    );
+
+    final shell = Path.combine(
+      PathOperation.difference,
+      Path()..addRRect(outer),
+      Path()..addRRect(inner),
+    );
+
+    canvas.drawRRect(
+      outer,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.028)
+        ..style = PaintingStyle.fill,
+    );
+
+    _paintDistortedField(canvas, size);
+
+    canvas.drawPath(
+      shell,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Colors.white.withValues(alpha: 0.76),
+            const Color(0x88D6F2FF),
+            Colors.white.withValues(alpha: 0.12),
+            const Color(0x3F85D2FF),
+          ],
+          stops: const <double>[0.0, 0.18, 0.56, 1.0],
+        ).createShader(rect),
+    );
+
+    final arcPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 1.55;
+    arcPaint.shader = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: <Color>[
+        Colors.white.withValues(alpha: 0.66),
+        Colors.white.withValues(alpha: 0.08),
+      ],
+    ).createShader(rect);
+    canvas.drawArc(
+      Rect.fromLTWH(
+        size.width * 0.04,
+        size.height * 0.06,
+        size.width * 0.54,
+        size.height * 0.34,
+      ),
+      math.pi * 1.05,
+      math.pi * 0.40,
+      false,
+      arcPaint,
+    );
+    canvas.drawArc(
+      Rect.fromLTWH(
+        size.width * 0.64,
+        size.height * 0.14,
+        size.width * 0.18,
+        size.height * 0.22,
+      ),
+      -math.pi * 0.12,
+      math.pi * 0.44,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 1.1
+        ..color = Colors.white.withValues(alpha: 0.42),
+    );
+
+    canvas.drawRRect(
+      outer,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = Colors.white.withValues(alpha: 0.70),
+    );
+    canvas.drawRRect(
+      inner,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.9
+        ..color = Colors.white.withValues(alpha: 0.14),
+    );
+
+    final shadowRect = Rect.fromCenter(
+      center: Offset(size.width * 0.5, size.height + 10),
+      width: size.width * 0.72,
+      height: size.height * 0.16,
+    );
+    canvas.drawOval(
+      shadowRect,
+      Paint()
+        ..shader = RadialGradient(
+          colors: <Color>[
+            Colors.black.withValues(alpha: 0.12),
+            Colors.transparent,
+          ],
+        ).createShader(shadowRect),
+    );
+  }
+
+  void _paintDistortedField(Canvas canvas, Size size) {
+    final leftLens = Rect.fromLTWH(
+      -size.width * 0.18,
+      -size.height * 0.04,
+      size.width * 0.42,
+      size.height * 1.08,
+    );
+    final rightLens = Rect.fromLTWH(
+      size.width * 0.70,
+      -size.height * 0.03,
+      size.width * 0.38,
+      size.height * 1.06,
+    );
+    final topLens = Rect.fromLTWH(
+      size.width * 0.06,
+      -size.height * 0.16,
+      size.width * 0.88,
+      size.height * 0.30,
+    );
+    final bottomLens = Rect.fromLTWH(
+      size.width * 0.08,
+      size.height * 0.78,
+      size.width * 0.84,
+      size.height * 0.34,
+    );
+
+    _paintLensBand(
+      canvas,
+      size,
+      leftLens,
+      scaleX: 1.52,
+      scaleY: 1.14,
+      shiftX: -24,
+      shiftY: -12,
+    );
+    _paintLensBand(
+      canvas,
+      size,
+      rightLens,
+      scaleX: 1.56,
+      scaleY: 1.14,
+      shiftX: 28,
+      shiftY: -10,
+    );
+    _paintLensBand(
+      canvas,
+      size,
+      topLens,
+      scaleX: 1.10,
+      scaleY: 1.34,
+      shiftX: 0,
+      shiftY: -18,
+    );
+    _paintLensBand(
+      canvas,
+      size,
+      bottomLens,
+      scaleX: 1.12,
+      scaleY: 1.30,
+      shiftX: 0,
+      shiftY: 20,
+    );
+
+    final fractureA = Path()
+      ..moveTo(size.width * 0.70, size.height * 0.18)
+      ..lineTo(size.width * 0.99, size.height * 0.24)
+      ..lineTo(size.width * 0.90, size.height * 0.50)
+      ..lineTo(size.width * 0.66, size.height * 0.42)
+      ..close();
+    _paintFracturePatch(canvas, size, fractureA, shiftX: 22, shiftY: -8);
+
+    final fractureB = Path()
+      ..moveTo(size.width * 0.00, size.height * 0.60)
+      ..lineTo(size.width * 0.18, size.height * 0.52)
+      ..lineTo(size.width * 0.22, size.height * 0.79)
+      ..lineTo(size.width * 0.03, size.height * 0.88)
+      ..close();
+    _paintFracturePatch(canvas, size, fractureB, shiftX: -18, shiftY: 12);
+
+    final fractureC = Path()
+      ..moveTo(size.width * 0.30, size.height * 0.83)
+      ..lineTo(size.width * 0.62, size.height * 0.74)
+      ..lineTo(size.width * 0.72, size.height * 1.02)
+      ..lineTo(size.width * 0.36, size.height * 1.02)
+      ..close();
+    _paintFracturePatch(canvas, size, fractureC, shiftX: 14, shiftY: 24);
+  }
+
+  void _paintLensBand(
+    Canvas canvas,
+    Size size,
+    Rect lens, {
+    required double scaleX,
+    required double scaleY,
+    required double shiftX,
+    required double shiftY,
+  }) {
+    final lensRRect = RRect.fromRectAndRadius(
+      lens,
+      Radius.circular(math.min(lens.width, lens.height) * 0.48),
+    );
+    canvas.save();
+    canvas.clipRRect(lensRRect);
+    canvas.translate(lens.center.dx, lens.center.dy);
+    canvas.scale(scaleX, scaleY);
+    canvas.translate(-lens.center.dx + shiftX, -lens.center.dy + shiftY);
+    _paintOceanLayer(canvas, size, Colors.white.withValues(alpha: 0.20));
+    canvas.restore();
+
+    canvas.drawRRect(
+      lensRRect,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Colors.white.withValues(alpha: 0.24),
+            const Color(0x6FA8E3FF),
+            Colors.white.withValues(alpha: 0.05),
+            Colors.transparent,
+          ],
+          stops: const <double>[0.0, 0.26, 0.70, 1.0],
+        ).createShader(lens),
+    );
+  }
+
+  void _paintFracturePatch(
+    Canvas canvas,
+    Size size,
+    Path patch, {
+    required double shiftX,
+    required double shiftY,
+  }) {
+    final bounds = patch.getBounds();
+    canvas.save();
+    canvas.clipPath(patch);
+    canvas.translate(bounds.center.dx, bounds.center.dy);
+    canvas.scale(1.60, 1.34);
+    canvas.translate(-bounds.center.dx + shiftX, -bounds.center.dy + shiftY);
+    _paintOceanLayer(canvas, size, Colors.white.withValues(alpha: 0.18));
+    canvas.restore();
+
+    canvas.drawPath(
+      patch,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Colors.white.withValues(alpha: 0.18),
+            const Color(0x6699D9FF),
+            Colors.transparent,
+          ],
+        ).createShader(bounds),
+    );
+  }
+
+  void _paintOceanLayer(Canvas canvas, Size size, Color causticTint) {
+    final seaTop = size.height * 0.34;
+    final seaRect = Rect.fromLTWH(0, seaTop, size.width, size.height - seaTop);
+    canvas.drawRect(
+      seaRect,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            Color(0xC53D94EA),
+            Color(0xD51A5C9B),
+            Color(0xF0072948),
+          ],
+        ).createShader(seaRect),
+    );
+
+    final wavePath = Path()..moveTo(0, seaTop);
+    for (double x = 0; x <= size.width; x += 5) {
+      final progress = x / size.width;
+      final y =
+          seaTop +
+          math.sin(progress * math.pi * 2.4 + t * math.pi * 2.1) * 10 +
+          math.sin(progress * math.pi * 5.2 - t * math.pi * 1.7) * 5;
+      wavePath.lineTo(x, y);
+    }
+    wavePath
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(
+      wavePath,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            Color(0xE24AA8FF),
+            Color(0xF01B60A6),
+            Color(0xFF062A4C),
+          ],
+        ).createShader(seaRect),
+    );
+
+    final causticPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12)
+      ..color = causticTint;
+    for (var i = 0; i < 4; i++) {
+      final startX =
+          size.width * (0.14 + i * 0.18) + math.sin(t * 1.9 + i) * 18;
+      final startY = seaTop + size.height * (0.08 + i * 0.05);
+      final endX = startX + 86 + math.cos(t * 1.2 + i) * 24;
+      final endY = startY + 48 + math.sin(t * 1.6 + i) * 18;
+      causticPaint.strokeWidth = 6 + i * 1.3;
+      final path = Path()
+        ..moveTo(startX, startY)
+        ..quadraticBezierTo(
+          (startX + endX) / 2 + math.cos(t * 2.0 + i) * 12,
+          (startY + endY) / 2 - 22,
+          endX,
+          endY,
+        );
+      canvas.drawPath(path, causticPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _OceanGlassShellPainter oldDelegate) {
+    return oldDelegate.t != t || oldDelegate.radius != radius;
+  }
+}
+
 class _OceanStatsPanel extends StatelessWidget {
   const _OceanStatsPanel({
     required this.progress,
@@ -1894,7 +2278,8 @@ class _OceanStatsPanel extends StatelessWidget {
                     left: 24,
                     right: 24,
                     top: media.height * 0.26,
-                    child: _LiquidGlassCard(
+                    child: _OceanLiquidGlassCard(
+                      t: t,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
@@ -1903,27 +2288,32 @@ class _OceanStatsPanel extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
-                              color: Colors.white.withValues(alpha: 0.82),
+                              color: Colors.white.withValues(alpha: 0.92),
                               letterSpacing: 2.0,
+                              shadows: <Shadow>[
+                                Shadow(
+                                  color: Colors.black.withValues(alpha: 0.16),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            '已有${totalMl.toStringAsFixed(0)}ml汇入大海，其中你积攒了${userMl.toStringAsFixed(0)}ml',
-                            style: const TextStyle(
+                            '\u5df2\u6709${totalMl.toStringAsFixed(0)}ml\u6c47\u5165\u5927\u6d77\uff0c\u5176\u4e2d\u4f60\u79ef\u6512\u4e86${userMl.toStringAsFixed(0)}ml',
+                            style: TextStyle(
                               fontSize: 16,
                               height: 1.35,
                               fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            '当前总量相当于${baikalEquivalent.toStringAsPrecision(1)}个贝加尔湖',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.white.withValues(alpha: 0.72),
-                              fontWeight: FontWeight.w500,
+                              color: Colors.white.withValues(alpha: 0.98),
+                              shadows: <Shadow>[
+                                Shadow(
+                                  color: Colors.black.withValues(alpha: 0.24),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -1936,7 +2326,7 @@ class _OceanStatsPanel extends StatelessWidget {
                     top: seaStatsTop,
                     child: IgnorePointer(
                       child: Text(
-                        '当前总量相当于${baikalEquivalent.toStringAsPrecision(1)}个贝加尔湖',
+                        '\u5f53\u524d\u603b\u91cf\u76f8\u5f53\u4e8e${baikalEquivalent.toStringAsPrecision(1)}\u4e2a\u8d1d\u52a0\u5c14\u6e56',
                         style: TextStyle(
                           fontSize: 16,
                           height: 1.35,
@@ -1984,22 +2374,6 @@ class _OceanScenePainter extends CustomPainter {
           ],
         ).createShader(rect),
     );
-
-    final cloudPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.10)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 22);
-    for (var i = 0; i < 4; i++) {
-      final dx = size.width * (0.12 + i * 0.22);
-      final dy = size.height * (0.11 + math.sin(t * math.pi * 2 + i) * 0.008);
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: Offset(dx, dy),
-          width: size.width * 0.18,
-          height: size.height * 0.05,
-        ),
-        cloudPaint,
-      );
-    }
 
     final seaTop = size.height * 0.34;
     final seaRect = Rect.fromLTWH(0, seaTop, size.width, size.height - seaTop);
@@ -2097,10 +2471,17 @@ class _OceanScenePainter extends CustomPainter {
 }
 
 class _CalendarBottomSheet extends StatefulWidget {
-  const _CalendarBottomSheet({required this.progress, required this.todayMl});
+  const _CalendarBottomSheet({
+    required this.progress,
+    required this.todayMl,
+    required this.liquidTilt,
+    required this.sloshing,
+  });
 
   final double progress;
   final double todayMl;
+  final double liquidTilt;
+  final double sloshing;
 
   @override
   State<_CalendarBottomSheet> createState() => _CalendarBottomSheetState();
@@ -2128,6 +2509,8 @@ class _CalendarBottomSheetState extends State<_CalendarBottomSheet> {
     final reveal = Curves.easeOutCubic.transform(widget.progress);
     final offsetY = (1 - reveal) * media.height * 0.82;
     final monthNow = DateTime.now();
+    final optimizedTilt = (widget.liquidTilt * 20).round() / 20;
+    final optimizedSloshing = (widget.sloshing * 20).round() / 20;
 
     return Positioned.fill(
       child: IgnorePointer(
@@ -2156,15 +2539,20 @@ class _CalendarBottomSheetState extends State<_CalendarBottomSheet> {
                   borderRadius: BorderRadius.circular(30),
                   child: PageView.builder(
                     controller: _pageController,
+                    allowImplicitScrolling: true,
                     itemBuilder: (context, index) {
                       final delta = index - _basePage;
                       final month = DateTime(
                         monthNow.year,
                         monthNow.month + delta,
                       );
-                      return _MonthCalendarView(
-                        month: month,
-                        todayMl: widget.todayMl,
+                      return RepaintBoundary(
+                        child: _MonthCalendarView(
+                          month: month,
+                          todayMl: widget.todayMl,
+                          liquidTilt: optimizedTilt,
+                          sloshing: optimizedSloshing,
+                        ),
                       );
                     },
                   ),
@@ -2179,10 +2567,25 @@ class _CalendarBottomSheetState extends State<_CalendarBottomSheet> {
 }
 
 class _MonthCalendarView extends StatelessWidget {
-  const _MonthCalendarView({required this.month, required this.todayMl});
+  static const SliverGridDelegateWithFixedCrossAxisCount _calendarGridDelegate =
+      SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 7,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        childAspectRatio: 0.82,
+      );
+
+  const _MonthCalendarView({
+    required this.month,
+    required this.todayMl,
+    required this.liquidTilt,
+    required this.sloshing,
+  });
 
   final DateTime month;
   final double todayMl;
+  final double liquidTilt;
+  final double sloshing;
 
   @override
   Widget build(BuildContext context) {
@@ -2198,36 +2601,6 @@ class _MonthCalendarView extends StatelessWidget {
       color: Colors.white,
       child: Stack(
         children: <Widget>[
-          Positioned.fill(
-            child: IgnorePointer(
-              child: Opacity(
-                opacity: 0.05,
-                child: GridView.builder(
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(18, 110, 18, 18),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 7,
-                    mainAxisSpacing: 10,
-                    crossAxisSpacing: 10,
-                    childAspectRatio: 0.82,
-                  ),
-                  itemCount: 28,
-                  itemBuilder: (context, index) {
-                    return Center(
-                      child: Text(
-                        '${(index % 31) + 1}',
-                        style: const TextStyle(
-                          fontSize: 48,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.black,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ),
           Positioned(
             left: 18,
             top: 18,
@@ -2250,12 +2623,7 @@ class _MonthCalendarView extends StatelessWidget {
           GridView.builder(
             physics: const NeverScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(18, 110, 18, 18),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              childAspectRatio: 0.82,
-            ),
+            gridDelegate: _calendarGridDelegate,
             itemCount: rows * 7,
             itemBuilder: (context, index) {
               final dayNumber = index - leading + 1;
@@ -2272,48 +2640,35 @@ class _MonthCalendarView extends StatelessWidget {
                   : ((dayNumber * 37 + month.month * 19) % 120).toDouble();
               final waterLevel = (dailyMl / 120).clamp(0.0, 1.0);
 
-              return _LiquidGlassCard(
-                radius: 18,
-                padding: EdgeInsets.zero,
-                child: Stack(
-                  children: <Widget>[
-                    Positioned.fill(
-                      child: Align(
-                        alignment: Alignment.bottomCenter,
-                        child: FractionallySizedBox(
-                          heightFactor: waterLevel,
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: <Color>[
-                                  Color(0x9A8ED1FF),
-                                  Color(0xCC5CA8FF),
-                                ],
-                              ),
-                              borderRadius: BorderRadius.vertical(
-                                top: Radius.circular(16),
-                                bottom: Radius.circular(18),
-                              ),
-                            ),
+              return RepaintBoundary(
+                child: _LiquidGlassCard(
+                  radius: 18,
+                  padding: EdgeInsets.zero,
+                  child: Stack(
+                    children: <Widget>[
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: _CalendarWaterPainter(
+                            waterLevel: waterLevel,
+                            liquidTilt: liquidTilt,
+                            sloshing: sloshing,
                           ),
                         ),
                       ),
-                    ),
-                    Positioned(
-                      left: 10,
-                      top: 8,
-                      child: Text(
-                        '$dayNumber',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: isToday ? Colors.black : Colors.black87,
+                      Positioned(
+                        left: 10,
+                        top: 8,
+                        child: Text(
+                          '$dayNumber',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: isToday ? Colors.black : Colors.black87,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               );
             },
@@ -2321,6 +2676,104 @@ class _MonthCalendarView extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _CalendarWaterPainter extends CustomPainter {
+  const _CalendarWaterPainter({
+    required this.waterLevel,
+    required this.liquidTilt,
+    required this.sloshing,
+  });
+
+  final double waterLevel;
+  final double liquidTilt;
+  final double sloshing;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (waterLevel <= 0) {
+      return;
+    }
+
+    final rect = Offset.zero & size;
+    final topInset = size.height * 0.06;
+    final usableHeight = size.height - topInset;
+    final liquidTopBase = size.height - usableHeight * waterLevel;
+    final tiltHeight = liquidTilt * size.height * 0.04;
+    final sloshHeight = sloshing * size.height * 0.045;
+    final minSurfaceY = size.height * 0.06;
+    final maxSurfaceY = size.height * 0.90;
+    final overscan = size.width * 0.14;
+
+    final path = Path()
+      ..moveTo(-overscan, size.height + 4)
+      ..lineTo(-overscan, liquidTopBase);
+    var bodyTop = maxSurfaceY;
+
+    for (double x = -overscan; x <= size.width + overscan; x += 3.0) {
+      final progress = (x / size.width).clamp(0.0, 1.0);
+      final edgeFalloff = math.sin(progress * math.pi);
+      final slope = ((progress - 0.5) * 2) * tiltHeight;
+      final wave =
+          math.sin((progress * 2.4 + sloshing * 0.35) * math.pi * 2) *
+              sloshHeight *
+              edgeFalloff +
+          math.sin((progress * 4.5 - sloshing * 0.22) * math.pi * 2) *
+              sloshHeight *
+              0.42 *
+              edgeFalloff;
+      final y = (liquidTopBase + slope + wave).clamp(minSurfaceY, maxSurfaceY);
+      if (y < bodyTop) {
+        bodyTop = y;
+      }
+      path.lineTo(x, y);
+    }
+
+    path
+      ..lineTo(size.width + overscan, size.height + 4)
+      ..close();
+
+    canvas.save();
+    canvas.clipRRect(RRect.fromRectAndRadius(rect, const Radius.circular(18)));
+    canvas.drawRect(
+      Rect.fromLTWH(
+        -overscan * 2,
+        bodyTop - 3,
+        size.width + overscan * 4,
+        size.height - bodyTop + 10,
+      ),
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[Color(0x9A8ED1FF), Color(0xCC5CA8FF)],
+        ).createShader(rect),
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[Color(0x9A8ED1FF), Color(0xCC5CA8FF)],
+        ).createShader(rect),
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0
+        ..color = Colors.white.withValues(alpha: 0.34),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _CalendarWaterPainter oldDelegate) {
+    return oldDelegate.waterLevel != waterLevel ||
+        oldDelegate.liquidTilt != liquidTilt ||
+        oldDelegate.sloshing != sloshing;
   }
 }
 
@@ -2332,6 +2785,7 @@ class DynamicIslandDripPainter extends CustomPainter {
     required this.previousStretchIndex,
     required this.orbFill,
     required this.liquidTilt,
+    required this.shadowTilt,
     required this.sloshing,
     required this.color,
     required this.appName,
@@ -2344,6 +2798,7 @@ class DynamicIslandDripPainter extends CustomPainter {
   final int previousStretchIndex;
   final double orbFill;
   final double liquidTilt;
+  final double shadowTilt;
   final double sloshing;
   final Color color;
   final String appName;
@@ -2857,12 +3312,12 @@ class DynamicIslandDripPainter extends CustomPainter {
     required double radius,
     required Paint shadowPaint,
   }) {
-    final motionOffset = _orbMotionOffset(radius);
+    final shadowOffset = _orbShadowOffset(radius);
     canvas.drawOval(
       Rect.fromCenter(
         center: Offset(
-          center.dx + motionOffset.dx * 1.05,
-          center.dy + radius + 18 + motionOffset.dy * 0.72,
+          center.dx + shadowOffset.dx * 1.10,
+          center.dy + radius + 18 + shadowOffset.dy,
         ),
         width: radius * 1.86,
         height: radius * 0.42,
@@ -2874,8 +3329,8 @@ class DynamicIslandDripPainter extends CustomPainter {
     canvas.drawOval(
       Rect.fromCenter(
         center: Offset(
-          center.dx + motionOffset.dx * 0.92,
-          center.dy + radius + 12 + motionOffset.dy * 0.64,
+          center.dx + shadowOffset.dx * 0.94,
+          center.dy + radius + 12 + shadowOffset.dy * 0.90,
         ),
         width: radius * 1.5,
         height: radius * 0.34,
@@ -3083,7 +3538,7 @@ class DynamicIslandDripPainter extends CustomPainter {
     )..layout(maxWidth: radius * 1.3);
     final subPainter = TextPainter(
       text: TextSpan(
-        text: '雨滴时长 ${earnedRainSeconds}s',
+        text: '闆ㄦ淮鏃堕暱 ${earnedRainSeconds}s',
         style: TextStyle(
           fontSize: radius * 0.09,
           fontWeight: FontWeight.w600,
@@ -3396,6 +3851,12 @@ class DynamicIslandDripPainter extends CustomPainter {
     return Offset(horizontal, vertical);
   }
 
+  Offset _orbShadowOffset(double radius) {
+    final horizontal = shadowTilt * radius * 0.10;
+    final vertical = shadowTilt.abs() * radius * 0.020;
+    return Offset(horizontal, vertical);
+  }
+
   static double _phaseFor(double t, _DripSpec spec) {
     final speed = math.min(spec.speed, 1.0);
     return (t * speed + spec.phaseOffset) % 1.0;
@@ -3422,6 +3883,7 @@ class DynamicIslandDripPainter extends CustomPainter {
         oldDelegate.previousStretchIndex != previousStretchIndex ||
         oldDelegate.orbFill != orbFill ||
         oldDelegate.liquidTilt != liquidTilt ||
+        oldDelegate.shadowTilt != shadowTilt ||
         oldDelegate.sloshing != sloshing ||
         oldDelegate.color != color ||
         oldDelegate.appName != appName ||
