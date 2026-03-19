@@ -45,7 +45,7 @@ class DynamicIslandDripPage extends StatefulWidget {
 
 class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     with TickerProviderStateMixin {
-  static const double _defaultOrbFillBaseline = 0.24;
+  static const double _defaultOrbFillBaseline = 0.015;
   static const double _panelRevealDistance = 84;
   static const double _rightPanelRevealDistance = 88;
   static const double _bottomSheetRevealDistance = 168;
@@ -66,7 +66,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   bool _gestureArmedFromOrb = false;
   int _cycleIndex = 0;
   double _lastValue = 0;
-  double _orbFill = 0.24;
+  double _orbFill = _defaultOrbFillBaseline;
   Duration _lastElapsed = Duration.zero;
   double _targetTilt = 0;
   double _liquidTilt = 0;
@@ -159,15 +159,13 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     super.dispose();
   }
 
-  int get _successfulCheckins => math.min(_filledReminderCount, 10);
+  int get _orbFilledUnits => math.min(_filledReminderCount, 10);
 
   double get _orbFillTarget => _debugOrbForceFull
       ? 1.0
-      : math.max(_successfulCheckins * 0.1, _defaultOrbFillBaseline);
+      : math.max(_orbFilledUnits * 0.1, _defaultOrbFillBaseline);
 
-  int get _earnedRainSeconds => _successfulCheckins * 30;
-
-  double get _userCollectedMl => _successfulCheckins * 120.0;
+  double get _userCollectedMl => _filledReminderCount * 10.0;
 
   double get _totalOceanMl => _userCollectedMl;
 
@@ -274,8 +272,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
                                     shadowTilt: _shadowTilt,
                                     sloshing: _sloshing,
                                     color: Colors.black,
-                                    appName: '12:05',
-                                    earnedRainSeconds: _earnedRainSeconds,
+                                    orbMl: _userCollectedMl,
                                   ),
                                   child: const SizedBox.expand(),
                                 ),
@@ -2740,8 +2737,7 @@ class DynamicIslandDripPainter extends CustomPainter {
     required this.shadowTilt,
     required this.sloshing,
     required this.color,
-    required this.appName,
-    required this.earnedRainSeconds,
+    required this.orbMl,
   });
 
   final double t;
@@ -2753,8 +2749,7 @@ class DynamicIslandDripPainter extends CustomPainter {
   final double shadowTilt;
   final double sloshing;
   final Color color;
-  final String appName;
-  final int earnedRainSeconds;
+  final double orbMl;
 
   static const Color _orbBlueTop = Color(0xFF8CCCFF);
   static const Color _orbBlueBottom = Color(0xFF4A93FF);
@@ -3351,19 +3346,26 @@ class DynamicIslandDripPainter extends CustomPainter {
         ..isAntiAlias = true,
     );
     canvas.save();
-    canvas.clipPath(outerPath);
-    canvas.drawCircle(
-      Offset(center.dx, center.dy + radius * 0.36),
-      radius * 0.96,
+    canvas.clipRect(
+      Rect.fromLTWH(
+        center.dx - radius,
+        center.dy + radius * 0.36,
+        radius * 2,
+        radius * 0.64,
+      ),
+    );
+    canvas.drawPath(
+      edgeBand,
       Paint()
-        ..shader = RadialGradient(
-          center: const Alignment(0.0, 0.78),
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
           colors: <Color>[
-            const Color(0x00000000),
-            const Color(0x1A8FBFFF),
-            const Color(0x2E9CC8FF),
+            Colors.transparent,
+            const Color(0x0B9CC8FF),
+            const Color(0x249CC8FF),
           ],
-          stops: const <double>[0.0, 0.62, 1.0],
+          stops: const <double>[0.0, 0.55, 1.0],
         ).createShader(orbRect)
         ..style = PaintingStyle.fill
         ..isAntiAlias = true,
@@ -3398,12 +3400,12 @@ class DynamicIslandDripPainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: <Color>[
-            Colors.white.withValues(alpha: 0.05),
-            const Color(0x1E9AC7FF),
+            Colors.white.withValues(alpha: 0.03),
+            const Color(0x149AC7FF),
           ],
         ).createShader(orbRect)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.84,
+        ..strokeWidth = 0.58,
     );
 
     _drawOrbLiquid(canvas, center: center, radius: radius);
@@ -3492,8 +3494,6 @@ class DynamicIslandDripPainter extends CustomPainter {
     required Offset center,
     required double radius,
   }) {
-    final motionOffset = _orbMotionOffset(radius);
-
     canvas.drawCircle(
       center,
       radius,
@@ -3507,7 +3507,7 @@ class DynamicIslandDripPainter extends CustomPainter {
           ],
         ).createShader(Rect.fromCircle(center: center, radius: radius))
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.1,
+        ..strokeWidth = 1.8,
     );
 
     canvas.drawCircle(
@@ -3523,61 +3523,7 @@ class DynamicIslandDripPainter extends CustomPainter {
           ],
         ).createShader(Rect.fromCircle(center: center, radius: radius))
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.15,
-    );
-
-    canvas.drawArc(
-      Rect.fromCenter(
-        center: Offset(
-          center.dx - radius * 0.02 + motionOffset.dx * 0.55,
-          center.dy - radius * 0.06 + motionOffset.dy * 0.25,
-        ),
-        width: radius * 1.72,
-        height: radius * 1.68,
-      ),
-      math.pi * 1.12,
-      math.pi * 0.52,
-      false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.25
-        ..color = Colors.white.withValues(alpha: 0.42),
-    );
-
-    canvas.drawArc(
-      Rect.fromCenter(
-        center: Offset(
-          center.dx + radius * 0.04 + motionOffset.dx,
-          center.dy + radius * 0.04 + motionOffset.dy,
-        ),
-        width: radius * 1.58,
-        height: radius * 1.62,
-      ),
-      math.pi * 0.15,
-      math.pi * 0.46,
-      false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.05
-        ..color = const Color(0x54FFFFFF),
-    );
-
-    canvas.drawArc(
-      Rect.fromCenter(
-        center: Offset(
-          center.dx + radius * 0.02 + motionOffset.dx * 0.4,
-          center.dy + radius * 0.18 + motionOffset.dy * 0.35,
-        ),
-        width: radius * 1.66,
-        height: radius * 1.22,
-      ),
-      math.pi * 0.20,
-      math.pi * 0.60,
-      false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.96
-        ..color = const Color(0x78E9F6FF),
+        ..strokeWidth = 0.82,
     );
 
     _drawOrbLabel(canvas, center: center, radius: radius);
@@ -3588,36 +3534,22 @@ class DynamicIslandDripPainter extends CustomPainter {
     required Offset center,
     required double radius,
   }) {
+    final mlText = '${orbMl.toStringAsFixed(0)}ml';
     final titlePainter = TextPainter(
       text: TextSpan(
-        text: appName,
+        text: mlText,
         style: TextStyle(
-          fontSize: radius * 0.19,
+          fontSize: radius * 0.22,
           fontWeight: FontWeight.w800,
           color: Colors.white.withValues(alpha: 0.82),
-          letterSpacing: 1.8,
+          letterSpacing: 0.6,
         ),
       ),
       textDirection: TextDirection.ltr,
     )..layout(maxWidth: radius * 1.3);
-    final subPainter = TextPainter(
-      text: TextSpan(
-        text: '\u96e8\u6ef4\u65f6\u957f ${earnedRainSeconds}s',
-        style: TextStyle(
-          fontSize: radius * 0.09,
-          fontWeight: FontWeight.w600,
-          color: Colors.white.withValues(alpha: 0.68),
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout(maxWidth: radius * 1.45);
     titlePainter.paint(
       canvas,
-      Offset(center.dx - titlePainter.width / 2, center.dy - radius * 0.10),
-    );
-    subPainter.paint(
-      canvas,
-      Offset(center.dx - subPainter.width / 2, center.dy + radius * 0.06),
+      Offset(center.dx - titlePainter.width / 2, center.dy - radius * 0.04),
     );
   }
 
@@ -3907,13 +3839,6 @@ class DynamicIslandDripPainter extends CustomPainter {
       ..isAntiAlias = true;
   }
 
-  Offset _orbMotionOffset(double radius) {
-    final horizontal = (liquidTilt * 0.62 + sloshing * 0.88) * radius * 0.14;
-    final vertical =
-        (liquidTilt.abs() * 0.22 + sloshing.abs() * 0.36) * radius * 0.055;
-    return Offset(horizontal, vertical);
-  }
-
   Offset _orbShadowOffset(double radius) {
     final stableTilt = ((shadowTilt * 10).round() / 10).toDouble();
     final horizontal = stableTilt * radius * 0.082;
@@ -3950,8 +3875,7 @@ class DynamicIslandDripPainter extends CustomPainter {
         oldDelegate.shadowTilt != shadowTilt ||
         oldDelegate.sloshing != sloshing ||
         oldDelegate.color != color ||
-        oldDelegate.appName != appName ||
-        oldDelegate.earnedRainSeconds != earnedRainSeconds;
+        oldDelegate.orbMl != orbMl;
   }
 }
 
