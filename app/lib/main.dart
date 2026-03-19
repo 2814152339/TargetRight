@@ -370,12 +370,19 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     _liquidTilt += _tiltVelocity * dt * 60;
     _liquidTilt = _liquidTilt.clamp(-1.15, 1.15).toDouble();
 
-    final shadowFollow = 1 - math.pow(0.86, dt * 60).toDouble();
-    _shadowTilt = _lerpDouble(
+    final quantizedShadowTarget = ((_targetTilt * 14).round() / 14)
+        .clamp(-1.0, 1.0)
+        .toDouble();
+    final shadowTarget = quantizedShadowTarget.abs() < 0.09
+        ? 0.0
+        : quantizedShadowTarget;
+    final shadowFollow = 1 - math.pow(0.965, dt * 60).toDouble();
+    final nextShadowTilt = _lerpDouble(
       _shadowTilt,
-      _targetTilt,
+      shadowTarget,
       shadowFollow,
     ).clamp(-1.0, 1.0);
+    _shadowTilt = nextShadowTilt.abs() < 0.016 ? 0.0 : nextShadowTilt;
 
     final sloshDamping = math.pow(0.92, dt * 60).toDouble();
     _sloshing *= sloshDamping;
@@ -533,12 +540,13 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
 
 class _ProfileEntry extends StatelessWidget {
   const _ProfileEntry({required this.nickname, required this.onTap});
-
   final String nickname;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
+    final displayName = _isGarbled(nickname)
+        ? '\u7528\u6237\u6635\u79f0'
+        : nickname;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -559,7 +567,7 @@ class _ProfileEntry extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Text(
-                '浣犲ソ,$nickname',
+                '\u4f60\u597d,$displayName',
                 style: const TextStyle(
                   fontSize: 18,
                   color: Colors.black,
@@ -571,6 +579,14 @@ class _ProfileEntry extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  bool _isGarbled(String value) {
+    return value.isEmpty ||
+        value.contains('?') ||
+        value.contains('閻') ||
+        value.contains('鐢') ||
+        value.contains('娴');
   }
 }
 
@@ -1864,22 +1880,35 @@ class _LiquidGlassCard extends StatelessWidget {
 
 class _OceanLiquidGlassCard extends StatelessWidget {
   const _OceanLiquidGlassCard({required this.child, required this.t});
-
   final Widget child;
   final double t;
   static const double _radius = 34;
   static const EdgeInsets _padding = EdgeInsets.fromLTRB(22, 18, 22, 18);
-
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(_radius),
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 7, sigmaY: 7),
-        child: CustomPaint(
-          painter: _OceanGlassShellPainter(t: t, radius: _radius),
-          child: Padding(padding: _padding, child: child),
-        ),
+      child: Stack(
+        children: <Widget>[
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 4.5, sigmaY: 4.5),
+              child: const SizedBox.expand(),
+            ),
+          ),
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _OceanGlassShellPainter(t: t, radius: _radius),
+            ),
+          ),
+          Padding(
+            padding: _padding,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 86),
+              child: child,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1887,304 +1916,212 @@ class _OceanLiquidGlassCard extends StatelessWidget {
 
 class _OceanGlassShellPainter extends CustomPainter {
   const _OceanGlassShellPainter({required this.t, required this.radius});
-
   final double t;
   final double radius;
-
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
     final outer = RRect.fromRectAndRadius(rect, Radius.circular(radius));
-    final inner = RRect.fromRectAndRadius(
-      rect.deflate(20),
-      Radius.circular(radius - 20),
+    final shellOuter = RRect.fromRectAndRadius(
+      rect.deflate(2),
+      Radius.circular(radius - 2),
     );
-
-    final shell = Path.combine(
+    final shellInner = RRect.fromRectAndRadius(
+      rect.deflate(12),
+      Radius.circular(radius - 12),
+    );
+    final shellPath = Path.combine(
       PathOperation.difference,
-      Path()..addRRect(outer),
-      Path()..addRRect(inner),
+      Path()..addRRect(shellOuter),
+      Path()..addRRect(shellInner),
     );
-
     canvas.drawRRect(
       outer,
       Paint()
-        ..color = Colors.white.withValues(alpha: 0.028)
+        ..color = Colors.white.withValues(alpha: 0.030)
         ..style = PaintingStyle.fill,
     );
-
-    _paintDistortedField(canvas, size);
-
+    _paintRefractionRibbon(
+      canvas,
+      size,
+      Rect.fromLTWH(-size.width * 0.04, 0, size.width * 0.16, size.height),
+      scaleX: 1.08,
+      scaleY: 1.04,
+      shiftX: -8,
+      shiftY: -2,
+      tint: const Color(0x2CA8DCFF),
+    );
+    _paintRefractionRibbon(
+      canvas,
+      size,
+      Rect.fromLTWH(size.width * 0.88, 0, size.width * 0.16, size.height),
+      scaleX: 1.09,
+      scaleY: 1.04,
+      shiftX: 9,
+      shiftY: -2,
+      tint: const Color(0x2694D9FF),
+    );
+    _paintRefractionRibbon(
+      canvas,
+      size,
+      Rect.fromLTWH(
+        size.width * 0.10,
+        -size.height * 0.03,
+        size.width * 0.80,
+        size.height * 0.16,
+      ),
+      scaleX: 1.02,
+      scaleY: 1.08,
+      shiftX: 0,
+      shiftY: -5,
+      tint: const Color(0x1ED6F3FF),
+    );
+    _paintRefractionRibbon(
+      canvas,
+      size,
+      Rect.fromLTWH(
+        size.width * 0.08,
+        size.height * 0.86,
+        size.width * 0.84,
+        size.height * 0.16,
+      ),
+      scaleX: 1.03,
+      scaleY: 1.10,
+      shiftX: 0,
+      shiftY: 7,
+      tint: const Color(0x1694D9FF),
+    );
     canvas.drawPath(
-      shell,
+      shellPath,
       Paint()
         ..shader = LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: <Color>[
-            Colors.white.withValues(alpha: 0.76),
-            const Color(0x88D6F2FF),
-            Colors.white.withValues(alpha: 0.12),
-            const Color(0x3F85D2FF),
+            Colors.white.withValues(alpha: 0.72),
+            Colors.white.withValues(alpha: 0.18),
+            const Color(0x3EA3DCFF),
+            Colors.white.withValues(alpha: 0.10),
           ],
-          stops: const <double>[0.0, 0.18, 0.56, 1.0],
+          stops: const <double>[0.0, 0.24, 0.72, 1.0],
         ).createShader(rect),
     );
-
-    final arcPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 1.55;
-    arcPaint.shader = LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: <Color>[
-        Colors.white.withValues(alpha: 0.66),
-        Colors.white.withValues(alpha: 0.08),
-      ],
-    ).createShader(rect);
     canvas.drawArc(
       Rect.fromLTWH(
-        size.width * 0.04,
+        size.width * 0.05,
         size.height * 0.06,
-        size.width * 0.54,
-        size.height * 0.34,
+        size.width * 0.50,
+        size.height * 0.26,
       ),
-      math.pi * 1.05,
-      math.pi * 0.40,
-      false,
-      arcPaint,
-    );
-    canvas.drawArc(
-      Rect.fromLTWH(
-        size.width * 0.64,
-        size.height * 0.14,
-        size.width * 0.18,
-        size.height * 0.22,
-      ),
-      -math.pi * 0.12,
-      math.pi * 0.44,
+      math.pi * 1.03,
+      math.pi * 0.36,
       false,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
-        ..strokeWidth = 1.1
-        ..color = Colors.white.withValues(alpha: 0.42),
+        ..strokeWidth = 1.35
+        ..color = Colors.white.withValues(alpha: 0.46),
     );
-
+    canvas.drawArc(
+      Rect.fromLTWH(
+        size.width * 0.67,
+        size.height * 0.19,
+        size.width * 0.16,
+        size.height * 0.18,
+      ),
+      -math.pi * 0.08,
+      math.pi * 0.30,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 0.95
+        ..color = Colors.white.withValues(alpha: 0.30),
+    );
     canvas.drawRRect(
       outer,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = Colors.white.withValues(alpha: 0.70),
+        ..strokeWidth = 1.0
+        ..color = Colors.white.withValues(alpha: 0.56),
     );
-    canvas.drawRRect(
-      inner,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.9
-        ..color = Colors.white.withValues(alpha: 0.14),
-    );
-
     final shadowRect = Rect.fromCenter(
-      center: Offset(size.width * 0.5, size.height + 10),
-      width: size.width * 0.72,
-      height: size.height * 0.16,
+      center: Offset(size.width * 0.5, size.height + 8),
+      width: size.width * 0.68,
+      height: size.height * 0.14,
     );
     canvas.drawOval(
       shadowRect,
       Paint()
         ..shader = RadialGradient(
           colors: <Color>[
-            Colors.black.withValues(alpha: 0.12),
+            Colors.black.withValues(alpha: 0.10),
             Colors.transparent,
           ],
         ).createShader(shadowRect),
     );
   }
 
-  void _paintDistortedField(Canvas canvas, Size size) {
-    final leftLens = Rect.fromLTWH(
-      -size.width * 0.18,
-      -size.height * 0.04,
-      size.width * 0.42,
-      size.height * 1.08,
-    );
-    final rightLens = Rect.fromLTWH(
-      size.width * 0.70,
-      -size.height * 0.03,
-      size.width * 0.38,
-      size.height * 1.06,
-    );
-    final topLens = Rect.fromLTWH(
-      size.width * 0.06,
-      -size.height * 0.16,
-      size.width * 0.88,
-      size.height * 0.30,
-    );
-    final bottomLens = Rect.fromLTWH(
-      size.width * 0.08,
-      size.height * 0.78,
-      size.width * 0.84,
-      size.height * 0.34,
-    );
-
-    _paintLensBand(
-      canvas,
-      size,
-      leftLens,
-      scaleX: 1.52,
-      scaleY: 1.14,
-      shiftX: -24,
-      shiftY: -12,
-    );
-    _paintLensBand(
-      canvas,
-      size,
-      rightLens,
-      scaleX: 1.56,
-      scaleY: 1.14,
-      shiftX: 28,
-      shiftY: -10,
-    );
-    _paintLensBand(
-      canvas,
-      size,
-      topLens,
-      scaleX: 1.10,
-      scaleY: 1.34,
-      shiftX: 0,
-      shiftY: -18,
-    );
-    _paintLensBand(
-      canvas,
-      size,
-      bottomLens,
-      scaleX: 1.12,
-      scaleY: 1.30,
-      shiftX: 0,
-      shiftY: 20,
-    );
-
-    final fractureA = Path()
-      ..moveTo(size.width * 0.70, size.height * 0.18)
-      ..lineTo(size.width * 0.99, size.height * 0.24)
-      ..lineTo(size.width * 0.90, size.height * 0.50)
-      ..lineTo(size.width * 0.66, size.height * 0.42)
-      ..close();
-    _paintFracturePatch(canvas, size, fractureA, shiftX: 22, shiftY: -8);
-
-    final fractureB = Path()
-      ..moveTo(size.width * 0.00, size.height * 0.60)
-      ..lineTo(size.width * 0.18, size.height * 0.52)
-      ..lineTo(size.width * 0.22, size.height * 0.79)
-      ..lineTo(size.width * 0.03, size.height * 0.88)
-      ..close();
-    _paintFracturePatch(canvas, size, fractureB, shiftX: -18, shiftY: 12);
-
-    final fractureC = Path()
-      ..moveTo(size.width * 0.30, size.height * 0.83)
-      ..lineTo(size.width * 0.62, size.height * 0.74)
-      ..lineTo(size.width * 0.72, size.height * 1.02)
-      ..lineTo(size.width * 0.36, size.height * 1.02)
-      ..close();
-    _paintFracturePatch(canvas, size, fractureC, shiftX: 14, shiftY: 24);
-  }
-
-  void _paintLensBand(
+  void _paintRefractionRibbon(
     Canvas canvas,
     Size size,
-    Rect lens, {
+    Rect rect, {
     required double scaleX,
     required double scaleY,
     required double shiftX,
     required double shiftY,
+    required Color tint,
   }) {
-    final lensRRect = RRect.fromRectAndRadius(
-      lens,
-      Radius.circular(math.min(lens.width, lens.height) * 0.48),
+    final ribbon = RRect.fromRectAndRadius(
+      rect,
+      Radius.circular(math.min(rect.width, rect.height) * 0.48),
     );
     canvas.save();
-    canvas.clipRRect(lensRRect);
-    canvas.translate(lens.center.dx, lens.center.dy);
+    canvas.clipRRect(ribbon);
+    canvas.translate(rect.center.dx, rect.center.dy);
     canvas.scale(scaleX, scaleY);
-    canvas.translate(-lens.center.dx + shiftX, -lens.center.dy + shiftY);
-    _paintOceanLayer(canvas, size, Colors.white.withValues(alpha: 0.20));
+    canvas.translate(-rect.center.dx + shiftX, -rect.center.dy + shiftY);
+    _paintOceanRefraction(canvas, size, tint);
     canvas.restore();
-
     canvas.drawRRect(
-      lensRRect,
+      ribbon,
       Paint()
         ..shader = LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: <Color>[
-            Colors.white.withValues(alpha: 0.24),
-            const Color(0x6FA8E3FF),
-            Colors.white.withValues(alpha: 0.05),
+            Colors.white.withValues(alpha: 0.12),
+            tint.withValues(alpha: 0.10),
             Colors.transparent,
           ],
-          stops: const <double>[0.0, 0.26, 0.70, 1.0],
-        ).createShader(lens),
+          stops: const <double>[0.0, 0.48, 1.0],
+        ).createShader(rect),
     );
   }
 
-  void _paintFracturePatch(
-    Canvas canvas,
-    Size size,
-    Path patch, {
-    required double shiftX,
-    required double shiftY,
-  }) {
-    final bounds = patch.getBounds();
-    canvas.save();
-    canvas.clipPath(patch);
-    canvas.translate(bounds.center.dx, bounds.center.dy);
-    canvas.scale(1.60, 1.34);
-    canvas.translate(-bounds.center.dx + shiftX, -bounds.center.dy + shiftY);
-    _paintOceanLayer(canvas, size, Colors.white.withValues(alpha: 0.18));
-    canvas.restore();
-
-    canvas.drawPath(
-      patch,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: <Color>[
-            Colors.white.withValues(alpha: 0.18),
-            const Color(0x6699D9FF),
-            Colors.transparent,
-          ],
-        ).createShader(bounds),
-    );
-  }
-
-  void _paintOceanLayer(Canvas canvas, Size size, Color causticTint) {
-    final seaTop = size.height * 0.34;
+  void _paintOceanRefraction(Canvas canvas, Size size, Color tint) {
+    final seaTop = size.height * 0.62;
     final seaRect = Rect.fromLTWH(0, seaTop, size.width, size.height - seaTop);
     canvas.drawRect(
       seaRect,
       Paint()
-        ..shader = const LinearGradient(
+        ..shader = LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: <Color>[
-            Color(0xC53D94EA),
-            Color(0xD51A5C9B),
-            Color(0xF0072948),
+            tint.withValues(alpha: 0.20),
+            tint.withValues(alpha: 0.30),
+            const Color(0x33072235),
           ],
         ).createShader(seaRect),
     );
-
     final wavePath = Path()..moveTo(0, seaTop);
-    for (double x = 0; x <= size.width; x += 5) {
+    for (double x = 0; x <= size.width; x += 6) {
       final progress = x / size.width;
       final y =
           seaTop +
-          math.sin(progress * math.pi * 2.4 + t * math.pi * 2.1) * 10 +
-          math.sin(progress * math.pi * 5.2 - t * math.pi * 1.7) * 5;
+          math.sin(progress * math.pi * 2.5 + t * math.pi * 2) * 6 +
+          math.sin(progress * math.pi * 5.2 - t * math.pi * 1.4) * 3;
       wavePath.lineTo(x, y);
     }
     wavePath
@@ -2193,40 +2130,8 @@ class _OceanGlassShellPainter extends CustomPainter {
       ..close();
     canvas.drawPath(
       wavePath,
-      Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[
-            Color(0xE24AA8FF),
-            Color(0xF01B60A6),
-            Color(0xFF062A4C),
-          ],
-        ).createShader(seaRect),
+      Paint()..color = Colors.white.withValues(alpha: 0.10),
     );
-
-    final causticPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12)
-      ..color = causticTint;
-    for (var i = 0; i < 4; i++) {
-      final startX =
-          size.width * (0.14 + i * 0.18) + math.sin(t * 1.9 + i) * 18;
-      final startY = seaTop + size.height * (0.08 + i * 0.05);
-      final endX = startX + 86 + math.cos(t * 1.2 + i) * 24;
-      final endY = startY + 48 + math.sin(t * 1.6 + i) * 18;
-      causticPaint.strokeWidth = 6 + i * 1.3;
-      final path = Path()
-        ..moveTo(startX, startY)
-        ..quadraticBezierTo(
-          (startX + endX) / 2 + math.cos(t * 2.0 + i) * 12,
-          (startY + endY) / 2 - 22,
-          endX,
-          endY,
-        );
-      canvas.drawPath(path, causticPaint);
-    }
   }
 
   @override
@@ -2685,32 +2590,29 @@ class _CalendarWaterPainter extends CustomPainter {
     required this.liquidTilt,
     required this.sloshing,
   });
-
   final double waterLevel;
   final double liquidTilt;
   final double sloshing;
-
   @override
   void paint(Canvas canvas, Size size) {
     if (waterLevel <= 0) {
       return;
     }
-
     final rect = Offset.zero & size;
-    final topInset = size.height * 0.06;
-    final usableHeight = size.height - topInset;
+    final clipPath = Path()
+      ..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(18)));
+    final usableHeight = size.height - size.height * 0.06;
     final liquidTopBase = size.height - usableHeight * waterLevel;
     final tiltHeight = liquidTilt * size.height * 0.04;
     final sloshHeight = sloshing * size.height * 0.045;
     final minSurfaceY = size.height * 0.06;
     final maxSurfaceY = size.height * 0.90;
-    final overscan = size.width * 0.14;
-
-    final path = Path()
-      ..moveTo(-overscan, size.height + 4)
+    final overscan = size.width * 0.26;
+    final surfacePath = Path();
+    final fillPath = Path()
+      ..moveTo(-overscan, size.height + overscan)
       ..lineTo(-overscan, liquidTopBase);
-    var bodyTop = maxSurfaceY;
-
+    var isFirstPoint = true;
     for (double x = -overscan; x <= size.width + overscan; x += 3.0) {
       final progress = (x / size.width).clamp(0.0, 1.0);
       final edgeFalloff = math.sin(progress * math.pi);
@@ -2724,25 +2626,24 @@ class _CalendarWaterPainter extends CustomPainter {
               0.42 *
               edgeFalloff;
       final y = (liquidTopBase + slope + wave).clamp(minSurfaceY, maxSurfaceY);
-      if (y < bodyTop) {
-        bodyTop = y;
+      if (isFirstPoint) {
+        surfacePath.moveTo(x, y);
+        isFirstPoint = false;
+      } else {
+        surfacePath.lineTo(x, y);
       }
-      path.lineTo(x, y);
+      fillPath.lineTo(x, y);
     }
-
-    path
-      ..lineTo(size.width + overscan, size.height + 4)
+    fillPath
+      ..lineTo(size.width + overscan, size.height + overscan)
       ..close();
-
-    canvas.save();
-    canvas.clipRRect(RRect.fromRectAndRadius(rect, const Radius.circular(18)));
-    canvas.drawRect(
-      Rect.fromLTWH(
-        -overscan * 2,
-        bodyTop - 3,
-        size.width + overscan * 4,
-        size.height - bodyTop + 10,
-      ),
+    final clippedFill = Path.combine(
+      PathOperation.intersect,
+      clipPath,
+      fillPath,
+    );
+    canvas.drawPath(
+      clippedFill,
       Paint()
         ..shader = const LinearGradient(
           begin: Alignment.topCenter,
@@ -2751,22 +2652,12 @@ class _CalendarWaterPainter extends CustomPainter {
         ).createShader(rect),
     );
     canvas.drawPath(
-      path,
-      Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[Color(0x9A8ED1FF), Color(0xCC5CA8FF)],
-        ).createShader(rect),
-    );
-    canvas.drawPath(
-      path,
+      surfacePath,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.0
         ..color = Colors.white.withValues(alpha: 0.34),
     );
-    canvas.restore();
   }
 
   @override
@@ -3538,7 +3429,7 @@ class DynamicIslandDripPainter extends CustomPainter {
     )..layout(maxWidth: radius * 1.3);
     final subPainter = TextPainter(
       text: TextSpan(
-        text: '闆ㄦ淮鏃堕暱 ${earnedRainSeconds}s',
+        text: '\u96e8\u6ef4\u65f6\u957f ${earnedRainSeconds}s',
         style: TextStyle(
           fontSize: radius * 0.09,
           fontWeight: FontWeight.w600,
@@ -3547,7 +3438,6 @@ class DynamicIslandDripPainter extends CustomPainter {
       ),
       textDirection: TextDirection.ltr,
     )..layout(maxWidth: radius * 1.45);
-
     titlePainter.paint(
       canvas,
       Offset(center.dx - titlePainter.width / 2, center.dy - radius * 0.10),
@@ -3852,8 +3742,9 @@ class DynamicIslandDripPainter extends CustomPainter {
   }
 
   Offset _orbShadowOffset(double radius) {
-    final horizontal = shadowTilt * radius * 0.10;
-    final vertical = shadowTilt.abs() * radius * 0.020;
+    final stableTilt = ((shadowTilt * 10).round() / 10).toDouble();
+    final horizontal = stableTilt * radius * 0.082;
+    final vertical = stableTilt.abs() * radius * 0.008;
     return Offset(horizontal, vertical);
   }
 
