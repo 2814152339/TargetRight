@@ -36,6 +36,117 @@ class DynamicIslandDripApp extends StatelessWidget {
 
 enum _EdgeDragMode { none, leftPanel, rightPanel, bottomSheet }
 
+enum _ReminderAlertMode { systemAlarm, vibrationOnly }
+
+class _ReminderTaskConfig {
+  const _ReminderTaskConfig({
+    required this.index,
+    required this.title,
+    required this.emoji,
+    required this.description,
+    required this.time,
+    required this.alertMode,
+  });
+
+  final int index;
+  final String title;
+  final String emoji;
+  final String description;
+  final TimeOfDay time;
+  final _ReminderAlertMode alertMode;
+}
+
+class _CloudStats {
+  const _CloudStats({this.userMl = 0, this.totalMl = 0});
+
+  final double userMl;
+  final double totalMl;
+}
+
+abstract class _CloudStatsRepository {
+  Future<_CloudStats> fetchStats();
+
+  Future<_CloudStats> uploadContribution(double ml);
+}
+
+class _LocalCloudStatsRepository implements _CloudStatsRepository {
+  double _userMl = 0;
+  double _totalMl = 0;
+
+  @override
+  Future<_CloudStats> fetchStats() async {
+    return _CloudStats(userMl: _userMl, totalMl: _totalMl);
+  }
+
+  @override
+  Future<_CloudStats> uploadContribution(double ml) async {
+    _userMl += ml;
+    _totalMl += ml;
+    return _CloudStats(userMl: _userMl, totalMl: _totalMl);
+  }
+}
+
+class _InAppReminderScheduler {
+  _InAppReminderScheduler({required this.onTrigger});
+
+  final Future<void> Function(_ReminderTaskConfig task) onTrigger;
+  final Map<int, Timer> _timers = <int, Timer>{};
+  final Map<int, _ReminderTaskConfig> _tasks = <int, _ReminderTaskConfig>{};
+
+  void updateTasks(List<_ReminderTaskConfig> tasks) {
+    final nextTasks = <int, _ReminderTaskConfig>{
+      for (final task in tasks) task.index: task,
+    };
+    final removedIds = _tasks.keys
+        .where((id) => !nextTasks.containsKey(id))
+        .toList(growable: false);
+    for (final id in removedIds) {
+      _timers.remove(id)?.cancel();
+      _tasks.remove(id);
+    }
+    for (final task in tasks) {
+      final previous = _tasks[task.index];
+      _tasks[task.index] = task;
+      if (previous == null ||
+          previous.time != task.time ||
+          previous.alertMode != task.alertMode ||
+          previous.title != task.title ||
+          previous.description != task.description) {
+        _scheduleTask(task);
+      }
+    }
+  }
+
+  void _scheduleTask(_ReminderTaskConfig task) {
+    _timers.remove(task.index)?.cancel();
+    final now = DateTime.now();
+    var nextTime = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      task.time.hour,
+      task.time.minute,
+    );
+    if (!nextTime.isAfter(now.add(const Duration(seconds: 1)))) {
+      nextTime = nextTime.add(const Duration(days: 1));
+    }
+    _timers[task.index] = Timer(nextTime.difference(now), () async {
+      await onTrigger(task);
+      if (_tasks.containsKey(task.index)) {
+        _scheduleTask(_tasks[task.index]!);
+      }
+    });
+  }
+
+  void dispose() {
+    for (final timer in _timers.values) {
+      timer.cancel();
+    }
+    _timers.clear();
+    _tasks.clear();
+  }
+}
+
 class DynamicIslandDripPage extends StatefulWidget {
   const DynamicIslandDripPage({super.key});
 
@@ -75,7 +186,16 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   double _shakeKick = 0;
   double _sloshing = 0;
   bool _debugOrbForceFull = false;
-  int _filledReminderCount = 0;
+  double _orbStoredMl = 0;
+  double _uploadStartMl = 0;
+  bool _uploadCommitted = false;
+  bool _alarmDialogVisible = false;
+  Timer? _alarmEffectTimer;
+  late final AnimationController _uploadProgressController;
+  late final AnimationController _uploadRevealController;
+  late final _CloudStatsRepository _cloudStatsRepository;
+  late final _InAppReminderScheduler _reminderScheduler;
+  _CloudStats _cloudStats = const _CloudStats();
 
   @override
   void initState() {
@@ -96,7 +216,23 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       vsync: this,
       duration: const Duration(milliseconds: 320),
     );
+    _uploadProgressController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _commitOrbUpload();
+      }
+    });
+    _uploadRevealController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+      reverseDuration: const Duration(milliseconds: 160),
+    );
+    _cloudStatsRepository = _LocalCloudStatsRepository();
+    _reminderScheduler = _InAppReminderScheduler(onTrigger: _handleReminderDue);
     _startMotionTracking();
+    _loadCloudStats();
     _controller =
         AnimationController(
             vsync: this,
@@ -152,6 +288,10 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   void dispose() {
     _accelerometerSub?.cancel();
     _userAccelerometerSub?.cancel();
+    _alarmEffectTimer?.cancel();
+    _reminderScheduler.dispose();
+    _uploadProgressController.dispose();
+    _uploadRevealController.dispose();
     _panelController.dispose();
     _oceanPanelController.dispose();
     _calendarSheetController.dispose();
@@ -159,17 +299,29 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     super.dispose();
   }
 
-  int get _orbFilledUnits => math.min(_filledReminderCount, 10);
+  double get _displayOrbMl {
+    if (_uploadRevealController.value <= 0.01) {
+      return _debugOrbForceFull ? 100 : _orbStoredMl;
+    }
+    if (_uploadCommitted) {
+      return 0;
+    }
+    return (_uploadStartMl * (1 - _uploadProgressController.value)).clamp(
+      0.0,
+      _uploadStartMl,
+    );
+  }
 
-  double get _orbFillTarget => _debugOrbForceFull
-      ? 1.0
-      : math.max(_orbFilledUnits * 0.1, _defaultOrbFillBaseline);
+  double get _orbFillTarget =>
+      math.max(math.min(_displayOrbMl, 100) / 100, _defaultOrbFillBaseline);
 
-  double get _userCollectedMl => _filledReminderCount * 10.0;
+  double get _userCollectedMl => _cloudStats.userMl;
 
-  double get _totalOceanMl => _userCollectedMl;
+  double get _totalOceanMl => _cloudStats.totalMl;
 
   double get _baikalEquivalent => _totalOceanMl / 23600000000000000.0;
+
+  bool get _canUploadOrb => _displayOrbMl >= 50;
 
   @override
   Widget build(BuildContext context) {
@@ -200,6 +352,8 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
             _panelController,
             _oceanPanelController,
             _calendarSheetController,
+            _uploadProgressController,
+            _uploadRevealController,
           ]),
           builder: (context, _) {
             final leftPanelProgress = Curves.easeOutCubic.transform(
@@ -223,11 +377,16 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
 
             return LayoutBuilder(
               builder: (context, constraints) {
+                final orbCenter = Offset(
+                  constraints.maxWidth / 2,
+                  constraints.maxHeight * 0.60,
+                );
+                final orbRadius = math.min(constraints.maxWidth * 0.235, 94.0);
                 return Stack(
                   children: <Widget>[
                     _SlideOutReplicaPanel(
                       progress: leftPanelProgress,
-                      onReminderCountChanged: _handleReminderCountChanged,
+                      onReminderTasksChanged: _handleReminderTasksChanged,
                     ),
                     _OceanStatsPanel(
                       progress: rightPanelProgress,
@@ -272,9 +431,34 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
                                     shadowTilt: _shadowTilt,
                                     sloshing: _sloshing,
                                     color: Colors.black,
-                                    orbMl: _userCollectedMl,
+                                    orbMl: _displayOrbMl,
+                                    uploadProgress:
+                                        _uploadProgressController.value,
+                                    uploadReveal:
+                                        _uploadRevealController.value,
                                   ),
                                   child: const SizedBox.expand(),
+                                ),
+                                Positioned(
+                                  left: orbCenter.dx - orbRadius * 1.24,
+                                  top: orbCenter.dy - orbRadius * 1.24,
+                                  width: orbRadius * 2.48,
+                                  height: orbRadius * 2.48,
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.translucent,
+                                    onLongPressStart:
+                                        sceneCover > 0.02 || !_canUploadOrb
+                                        ? null
+                                        : (_) => _handleOrbUploadStart(),
+                                    onLongPressEnd:
+                                        sceneCover > 0.02 || !_canUploadOrb
+                                        ? null
+                                        : (_) => _handleOrbUploadEnd(),
+                                    onLongPressCancel:
+                                        sceneCover > 0.02 || !_canUploadOrb
+                                        ? null
+                                        : _handleOrbUploadCancel,
+                                  ),
                                 ),
                                 Positioned(
                                   left: 16,
@@ -543,19 +727,129 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     _gestureArmedFromOrb = false;
   }
 
-  void _handleReminderCountChanged(int count) {
-    if (_filledReminderCount == count) {
-      return;
-    }
-    setState(() {
-      _filledReminderCount = count;
-    });
-  }
-
   void _toggleDebugOrbFill() {
     setState(() {
       _debugOrbForceFull = !_debugOrbForceFull;
+      _orbStoredMl = _debugOrbForceFull ? 100 : 0;
     });
+  }
+
+  Future<void> _loadCloudStats() async {
+    final stats = await _cloudStatsRepository.fetchStats();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _cloudStats = stats;
+    });
+  }
+
+  void _handleReminderTasksChanged(List<_ReminderTaskConfig> tasks) {
+    _reminderScheduler.updateTasks(tasks);
+  }
+
+  void _handleOrbUploadStart() {
+    if (!_canUploadOrb || _uploadRevealController.isAnimating) {
+      return;
+    }
+    _uploadStartMl = _debugOrbForceFull ? 100 : _orbStoredMl;
+    _uploadCommitted = false;
+    _uploadProgressController.stop();
+    _uploadProgressController.value = 0;
+    _uploadRevealController.forward(from: 0);
+    _uploadProgressController.forward(from: 0);
+  }
+
+  void _handleOrbUploadEnd() {
+    if (_uploadRevealController.value <= 0.0) {
+      return;
+    }
+    if (!_uploadCommitted) {
+      _uploadProgressController.stop();
+      _uploadProgressController.value = 0;
+    }
+    _uploadRevealController.reverse();
+  }
+
+  void _handleOrbUploadCancel() {
+    _handleOrbUploadEnd();
+  }
+
+  Future<void> _commitOrbUpload() async {
+    if (_uploadCommitted) {
+      return;
+    }
+    _uploadCommitted = true;
+    final uploadedMl = _uploadStartMl;
+    setState(() {
+      _debugOrbForceFull = false;
+      _orbStoredMl = 0;
+    });
+    final stats = await _cloudStatsRepository.uploadContribution(uploadedMl);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _cloudStats = stats;
+    });
+  }
+
+  Future<void> _handleReminderDue(_ReminderTaskConfig task) async {
+    if (!mounted || _alarmDialogVisible) {
+      return;
+    }
+    _alarmDialogVisible = true;
+    _startAlarmFeedback(task.alertMode);
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(task.title),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text('提醒时间：${task.time.format(context)}'),
+              if (task.description.isNotEmpty) ...<Widget>[
+                const SizedBox(height: 8),
+                Text(task.description),
+              ],
+            ],
+          ),
+          actions: <Widget>[
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('关闭'),
+            ),
+          ],
+        );
+      },
+    );
+    _stopAlarmFeedback();
+    _alarmDialogVisible = false;
+  }
+
+  void _startAlarmFeedback(_ReminderAlertMode mode) {
+    _stopAlarmFeedback();
+    if (mode == _ReminderAlertMode.systemAlarm) {
+      SystemSound.play(SystemSoundType.alert);
+      _alarmEffectTimer = Timer.periodic(const Duration(milliseconds: 1300), (
+        _,
+      ) {
+        SystemSound.play(SystemSoundType.alert);
+      });
+      return;
+    }
+    HapticFeedback.heavyImpact();
+    _alarmEffectTimer = Timer.periodic(const Duration(milliseconds: 900), (_) {
+      HapticFeedback.heavyImpact();
+    });
+  }
+
+  void _stopAlarmFeedback() {
+    _alarmEffectTimer?.cancel();
+    _alarmEffectTimer = null;
   }
 
   static double _lerpDouble(double a, double b, double t) => a + (b - a) * t;
@@ -680,11 +974,11 @@ class ProfilePlaceholderPage extends StatelessWidget {
 class _SlideOutReplicaPanel extends StatefulWidget {
   const _SlideOutReplicaPanel({
     required this.progress,
-    required this.onReminderCountChanged,
+    required this.onReminderTasksChanged,
   });
 
   final double progress;
-  final ValueChanged<int> onReminderCountChanged;
+  final ValueChanged<List<_ReminderTaskConfig>> onReminderTasksChanged;
 
   @override
   State<_SlideOutReplicaPanel> createState() => _SlideOutReplicaPanelState();
@@ -904,6 +1198,8 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
   late final List<String?> _customReminderTitles;
   late final List<String?> _customReminderEmojis;
   late final List<String?> _customReminderDescriptions;
+  late final List<TimeOfDay?> _customReminderTimes;
+  late final List<_ReminderAlertMode?> _customReminderAlertModes;
 
   @override
   void initState() {
@@ -911,6 +1207,11 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
     _customReminderTitles = List<String?>.filled(_cards.length, null);
     _customReminderEmojis = List<String?>.filled(_cards.length, null);
     _customReminderDescriptions = List<String?>.filled(_cards.length, null);
+    _customReminderTimes = List<TimeOfDay?>.filled(_cards.length, null);
+    _customReminderAlertModes = List<_ReminderAlertMode?>.filled(
+      _cards.length,
+      null,
+    );
   }
 
   void _snapToNearestSlot([double velocity = 0.0]) {
@@ -1111,66 +1412,126 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
     final descriptionController = TextEditingController(
       text: _customReminderDescriptions[targetIndex] ?? '',
     );
+    var selectedTime =
+        _customReminderTimes[targetIndex] ??
+        const TimeOfDay(hour: 8, minute: 0);
+    var selectedAlertMode =
+        _customReminderAlertModes[targetIndex] ??
+        _ReminderAlertMode.systemAlarm;
     final shouldSave = await showDialog<bool>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: Text(
-            isEditing ? '\u7f16\u8f91\u4e8b\u9879' : '\u65b0\u589e\u4e8b\u9879',
-          ),
-          content: SizedBox(
-            width: 340,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                TextField(
-                  controller: titleController,
-                  autofocus: true,
-                  maxLength: 16,
-                  decoration: const InputDecoration(
-                    labelText: '\u4e8b\u9879\u6807\u9898',
-                    hintText: '\u4f8b\u5982\uff1a\u559d\u4e00\u676f\u6c34',
-                  ),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text(isEditing ? '编辑事项' : '新增事项'),
+              content: SizedBox(
+                width: 340,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    TextField(
+                      controller: titleController,
+                      autofocus: true,
+                      maxLength: 16,
+                      decoration: const InputDecoration(
+                        labelText: '事项标题',
+                        hintText: '例如：喝一杯水',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: emojiController,
+                      maxLength: 4,
+                      decoration: const InputDecoration(
+                        labelText: 'Emoji 表情',
+                        hintText: '例如：💧',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: descriptionController,
+                      minLines: 3,
+                      maxLines: 5,
+                      maxLength: 80,
+                      decoration: const InputDecoration(
+                        labelText: '事项描述',
+                        hintText: '补充提醒详情',
+                        alignLabelWithHint: true,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('提醒时间'),
+                      subtitle: Text(selectedTime.format(context)),
+                      trailing: const Icon(Icons.schedule),
+                      onTap: () async {
+                        final picked = await showTimePicker(
+                          context: context,
+                          initialTime: selectedTime,
+                        );
+                        if (picked == null) {
+                          return;
+                        }
+                        setDialogState(() {
+                          selectedTime = picked;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Wrap(
+                        spacing: 8,
+                        children: <Widget>[
+                          ChoiceChip(
+                            label: const Text('系统闹铃'),
+                            selected:
+                                selectedAlertMode ==
+                                _ReminderAlertMode.systemAlarm,
+                            onSelected: (_) {
+                              setDialogState(() {
+                                selectedAlertMode =
+                                    _ReminderAlertMode.systemAlarm;
+                              });
+                            },
+                          ),
+                          ChoiceChip(
+                            label: const Text('仅震动'),
+                            selected:
+                                selectedAlertMode ==
+                                _ReminderAlertMode.vibrationOnly,
+                            onSelected: (_) {
+                              setDialogState(() {
+                                selectedAlertMode =
+                                    _ReminderAlertMode.vibrationOnly;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: emojiController,
-                  maxLength: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Emoji \u8868\u60c5',
-                    hintText: '\u4f8b\u5982\uff1a\u{1F4A7}',
-                  ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('取消'),
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: descriptionController,
-                  minLines: 3,
-                  maxLines: 5,
-                  maxLength: 80,
-                  decoration: const InputDecoration(
-                    labelText: '\u4e8b\u9879\u63cf\u8ff0',
-                    hintText: '\u8865\u5145\u63d0\u9192\u8be6\u60c5',
-                    alignLabelWithHint: true,
-                  ),
+                FilledButton(
+                  onPressed: () {
+                    if (titleController.text.trim().isEmpty) {
+                      return;
+                    }
+                    Navigator.of(context).pop(true);
+                  },
+                  child: const Text('保存'),
                 ),
               ],
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('\u53d6\u6d88'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (titleController.text.trim().isEmpty) {
-                  return;
-                }
-                Navigator.of(context).pop(true);
-              },
-              child: const Text('\u4fdd\u5b58'),
-            ),
-          ],
+            );
+          },
         );
       },
     );
@@ -1185,10 +1546,34 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
       _customReminderEmojis[targetIndex] = emojiController.text.trim();
       _customReminderDescriptions[targetIndex] = descriptionController.text
           .trim();
+      _customReminderTimes[targetIndex] = selectedTime;
+      _customReminderAlertModes[targetIndex] = selectedAlertMode;
     });
-    widget.onReminderCountChanged(
-      _customReminderTitles.whereType<String>().length,
-    );
+    widget.onReminderTasksChanged(_buildReminderTasks());
+  }
+
+  List<_ReminderTaskConfig> _buildReminderTasks() {
+    final tasks = <_ReminderTaskConfig>[];
+    for (var i = 0; i < _customReminderTitles.length; i++) {
+      final title = _customReminderTitles[i];
+      final time = _customReminderTimes[i];
+      if (title == null || time == null) {
+        continue;
+      }
+      tasks.add(
+        _ReminderTaskConfig(
+          index: i,
+          title: title,
+          emoji: _customReminderEmojis[i] ?? '',
+          description: _customReminderDescriptions[i] ?? '',
+          time: time,
+          alertMode:
+              _customReminderAlertModes[i] ??
+              _ReminderAlertMode.systemAlarm,
+        ),
+      );
+    }
+    return tasks;
   }
 
   String _displayTitleFor(int index) {
@@ -2743,6 +3128,8 @@ class DynamicIslandDripPainter extends CustomPainter {
     required this.sloshing,
     required this.color,
     required this.orbMl,
+    required this.uploadProgress,
+    required this.uploadReveal,
   });
 
   final double t;
@@ -2755,6 +3142,8 @@ class DynamicIslandDripPainter extends CustomPainter {
   final double sloshing;
   final Color color;
   final double orbMl;
+  final double uploadProgress;
+  final double uploadReveal;
 
   static const Color _orbBlueTop = Color(0xFF8CCCFF);
   static const Color _orbBlueBottom = Color(0xFF4A93FF);
@@ -3511,6 +3900,7 @@ class DynamicIslandDripPainter extends CustomPainter {
         ..strokeWidth = 0.72,
     );
 
+    _drawUploadOverlay(canvas, center: center, radius: radius);
     _drawOrbLabel(canvas, center: center, radius: radius);
   }
 
@@ -3520,13 +3910,18 @@ class DynamicIslandDripPainter extends CustomPainter {
     required double radius,
   }) {
     final mlText = '${orbMl.toStringAsFixed(0)}ml';
+    final labelProbeY = center.dy + radius * 0.06;
+    final surfaceY = _orbSurfaceY(center: center, radius: radius);
+    final isSubmerged = labelProbeY >= surfaceY;
     final titlePainter = TextPainter(
       text: TextSpan(
         text: mlText,
         style: TextStyle(
           fontSize: radius * 0.22,
           fontWeight: FontWeight.w800,
-          color: Colors.white.withValues(alpha: 0.82),
+          color: isSubmerged
+              ? Colors.white.withValues(alpha: 0.92)
+              : Color.lerp(_orbBlueTop, _orbBlueBottom, 0.62)!,
           letterSpacing: 0.6,
         ),
       ),
@@ -3536,6 +3931,144 @@ class DynamicIslandDripPainter extends CustomPainter {
       canvas,
       Offset(center.dx - titlePainter.width / 2, center.dy - radius * 0.04),
     );
+  }
+
+  void _drawUploadOverlay(
+    Canvas canvas, {
+    required Offset center,
+    required double radius,
+  }) {
+    if (uploadReveal <= 0.001) {
+      return;
+    }
+    final reveal = _easeOutCubic(uploadReveal.clamp(0.0, 1.0));
+    final progress = uploadProgress.clamp(0.0, 1.0);
+    final orbRect = Rect.fromCircle(center: center, radius: radius);
+
+    canvas.save();
+    canvas.clipPath(Path()..addOval(orbRect));
+    for (var i = 0; i < 3; i++) {
+      final phase = (progress + i * 0.18) % 1.0;
+      final rippleRadius = radius * (0.10 + phase * 1.08);
+      final opacity = (1 - phase) * reveal;
+      if (opacity <= 0.02) {
+        continue;
+      }
+      canvas.drawCircle(
+        center,
+        rippleRadius,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = _lerp(radius * 0.030, radius * 0.008, phase)
+          ..color = Colors.white.withValues(alpha: 0.22 * opacity)
+          ..maskFilter = MaskFilter.blur(
+            BlurStyle.normal,
+            radius * 0.018 * opacity,
+          ),
+      );
+    }
+    canvas.restore();
+
+    final percentText = '已汇入云海${(progress * 100).round()}%';
+    _drawArcText(
+      canvas,
+      text: percentText,
+      center: center,
+      radius: radius * 1.04,
+      startAngle: -math.pi * 0.88,
+      endAngle: -math.pi * 0.12,
+      opacity: reveal,
+    );
+  }
+
+  void _drawArcText(
+    Canvas canvas, {
+    required String text,
+    required Offset center,
+    required double radius,
+    required double startAngle,
+    required double endAngle,
+    required double opacity,
+  }) {
+    if (text.isEmpty || opacity <= 0.0) {
+      return;
+    }
+    final spanStyle = TextStyle(
+      fontSize: radius * 0.115,
+      fontWeight: FontWeight.w700,
+      color: Colors.black.withValues(alpha: 0.78 * opacity),
+      letterSpacing: 0.2,
+    );
+    final charPainters = <TextPainter>[];
+    var totalWidth = 0.0;
+    for (final rune in text.runes) {
+      final painter = TextPainter(
+        text: TextSpan(text: String.fromCharCode(rune), style: spanStyle),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      charPainters.add(painter);
+      totalWidth += painter.width;
+    }
+    if (charPainters.isEmpty || totalWidth <= 0) {
+      return;
+    }
+    final arcLength = radius * (endAngle - startAngle).abs();
+    final scale = math.min(1.0, arcLength / (totalWidth + 8));
+    var consumed = (arcLength - totalWidth * scale) / 2;
+    for (final painter in charPainters) {
+      final charWidth = painter.width * scale;
+      final theta = startAngle + (consumed + charWidth / 2) / radius;
+      final charCenter = Offset(
+        center.dx + math.cos(theta) * radius,
+        center.dy + math.sin(theta) * radius,
+      );
+      canvas.save();
+      canvas.translate(charCenter.dx, charCenter.dy);
+      canvas.rotate(theta + math.pi / 2);
+      canvas.scale(scale, scale);
+      painter.paint(canvas, Offset(-painter.width / 2, -painter.height / 2));
+      canvas.restore();
+      consumed += charWidth;
+    }
+  }
+
+  double _orbSurfaceY({
+    required Offset center,
+    required double radius,
+  }) {
+    final liquidTop = center.dy + radius * (1 - 2 * orbFill);
+    final fillLockProgress = _normalize(orbFill, 0.92, 1.0);
+    final motionMultiplier = 1 - _easeOutCubic(fillLockProgress);
+    final lockedLiquidTop = _lerp(
+      liquidTop,
+      center.dy - radius,
+      _easeOutCubic(fillLockProgress),
+    );
+    final waveA =
+        (4.5 + math.sin(t * math.pi * 2).abs() * 2.6) * motionMultiplier;
+    final waveB =
+        (1.8 + math.cos(t * math.pi * 2.6).abs() * 1.4) * motionMultiplier;
+    final tiltHeight = liquidTilt * radius * 0.22 * motionMultiplier;
+    final sloshHeight = sloshing * radius * 0.10 * motionMultiplier;
+    const progress = 0.5;
+    final edgeFalloff = math.sin(progress * math.pi);
+    final slope = ((progress - 0.5) * 2) * tiltHeight;
+    final wave =
+        math.sin((progress * 2.3 + t * 1.2) * math.pi * 2) *
+            waveA *
+            edgeFalloff +
+        math.sin((progress * 4.8 - t * 1.8) * math.pi * 2) *
+            waveB *
+            edgeFalloff;
+    final sloshWave =
+        math.sin((progress * 1.45 - t * 1.15 + sloshing * 0.35) * math.pi * 2) *
+            sloshHeight *
+            edgeFalloff +
+        math.sin((progress * 2.8 + t * 0.82) * math.pi * 2) *
+            sloshHeight *
+            0.32 *
+            edgeFalloff;
+    return lockedLiquidTop + slope + wave + sloshWave;
   }
 
   void _drawOrbAwareDrop(
@@ -3860,7 +4393,9 @@ class DynamicIslandDripPainter extends CustomPainter {
         oldDelegate.shadowTilt != shadowTilt ||
         oldDelegate.sloshing != sloshing ||
         oldDelegate.color != color ||
-        oldDelegate.orbMl != orbMl;
+        oldDelegate.orbMl != orbMl ||
+        oldDelegate.uploadProgress != uploadProgress ||
+        oldDelegate.uploadReveal != uploadReveal;
   }
 }
 
