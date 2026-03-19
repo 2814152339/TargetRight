@@ -1979,51 +1979,6 @@ class _OceanGlassShellPainter extends CustomPainter {
       shiftY: -10,
       tint: const Color(0x1ED6F3FF),
     );
-    _paintRefractionRibbon(
-      canvas,
-      size,
-      Rect.fromLTWH(
-        size.width * 0.04,
-        size.height * 0.82,
-        size.width * 0.92,
-        size.height * 0.22,
-      ),
-      scaleX: 1.10,
-      scaleY: 1.22,
-      shiftX: 0,
-      shiftY: 12,
-      tint: const Color(0x1694D9FF),
-    );
-    _paintRefractionRibbon(
-      canvas,
-      size,
-      Rect.fromLTWH(
-        size.width * 0.68,
-        size.height * 0.06,
-        size.width * 0.18,
-        size.height * 0.36,
-      ),
-      scaleX: 1.18,
-      scaleY: 1.16,
-      shiftX: 14,
-      shiftY: -10,
-      tint: const Color(0x1FA7E2FF),
-    );
-    _paintRefractionRibbon(
-      canvas,
-      size,
-      Rect.fromLTWH(
-        size.width * 0.14,
-        size.height * 0.62,
-        size.width * 0.20,
-        size.height * 0.28,
-      ),
-      scaleX: 1.16,
-      scaleY: 1.18,
-      shiftX: -12,
-      shiftY: 10,
-      tint: const Color(0x1B8FD8FF),
-    );
     canvas.drawPath(
       shellPath,
       Paint()
