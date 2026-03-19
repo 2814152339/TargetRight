@@ -45,6 +45,7 @@ class DynamicIslandDripPage extends StatefulWidget {
 
 class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     with TickerProviderStateMixin {
+  static const double _defaultOrbFillBaseline = 0.24;
   static const double _panelRevealDistance = 84;
   static const double _rightPanelRevealDistance = 88;
   static const double _bottomSheetRevealDistance = 168;
@@ -73,6 +74,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   double _tiltVelocity = 0;
   double _shakeKick = 0;
   double _sloshing = 0;
+  bool _debugOrbForceFull = false;
   int _filledReminderCount = 0;
 
   @override
@@ -159,7 +161,9 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
 
   int get _successfulCheckins => math.min(_filledReminderCount, 10);
 
-  double get _orbFillTarget => _successfulCheckins * 0.1;
+  double get _orbFillTarget => _debugOrbForceFull
+      ? 1.0
+      : math.max(_successfulCheckins * 0.1, _defaultOrbFillBaseline);
 
   int get _earnedRainSeconds => _successfulCheckins * 30;
 
@@ -288,6 +292,17 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
                                         ),
                                       );
                                     },
+                                  ),
+                                ),
+                                Positioned(
+                                  left: 0,
+                                  right: 0,
+                                  bottom: 28,
+                                  child: Center(
+                                    child: _DebugOrbToggleButton(
+                                      filled: _debugOrbForceFull,
+                                      onPressed: _toggleDebugOrbFill,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -535,7 +550,54 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     });
   }
 
+  void _toggleDebugOrbFill() {
+    setState(() {
+      _debugOrbForceFull = !_debugOrbForceFull;
+    });
+  }
+
   static double _lerpDouble(double a, double b, double t) => a + (b - a) * t;
+}
+
+class _DebugOrbToggleButton extends StatelessWidget {
+  const _DebugOrbToggleButton({required this.filled, required this.onPressed});
+
+  final bool filled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(999),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.78),
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.10),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Text(
+            filled ? '恢复初始液位' : '切换到满液位',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _ProfileEntry extends StatelessWidget {
@@ -3341,7 +3403,7 @@ class DynamicIslandDripPainter extends CustomPainter {
           ],
         ).createShader(orbRect)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.1,
+        ..strokeWidth = 0.84,
     );
 
     _drawOrbLiquid(canvas, center: center, radius: radius);
@@ -3514,7 +3576,7 @@ class DynamicIslandDripPainter extends CustomPainter {
       false,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.3
+        ..strokeWidth = 0.96
         ..color = const Color(0x78E9F6FF),
     );
 
