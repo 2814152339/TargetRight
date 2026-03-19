@@ -1992,7 +1992,7 @@ class _OceanGlassShellPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 20
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18)
-        ..color = Colors.white.withValues(alpha: 0.054),
+        ..color = Colors.white.withValues(alpha: 0.074),
     );
     canvas.drawRRect(
       outer,
@@ -2000,7 +2000,7 @@ class _OceanGlassShellPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 10
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10)
-        ..color = Colors.white.withValues(alpha: 0.032),
+        ..color = Colors.white.withValues(alpha: 0.046),
     );
     canvas.save();
     canvas.clipRect(
@@ -2012,7 +2012,7 @@ class _OceanGlassShellPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 18
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18)
-        ..color = Colors.white.withValues(alpha: 0.072),
+        ..color = Colors.white.withValues(alpha: 0.090),
     );
     canvas.restore();
     canvas.restore();
@@ -2287,21 +2287,6 @@ class _OceanScenePainter extends CustomPainter {
     );
 
     final seaTop = size.height * 0.34;
-    final seaRect = Rect.fromLTWH(0, seaTop, size.width, size.height - seaTop);
-    canvas.drawRect(
-      seaRect,
-      Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[
-            Color(0xFF0E3E67),
-            Color(0xFF0A2C4B),
-            Color(0xFF071C31),
-          ],
-        ).createShader(seaRect),
-    );
-
     final wavePath = Path()..moveTo(0, seaTop);
     for (double x = 0; x <= size.width; x += 6) {
       final progress = x / size.width;
@@ -2318,15 +2303,23 @@ class _OceanScenePainter extends CustomPainter {
     canvas.drawPath(
       wavePath,
       Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[
-            Color(0xC02D7FC6),
-            Color(0xE0104B88),
-            Color(0xF0062746),
-          ],
-        ).createShader(seaRect),
+        ..shader =
+            LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: const <Color>[
+                Color(0xD7428DDA),
+                Color(0xE42571BF),
+                Color(0xF00C4B8A),
+              ],
+            ).createShader(
+              Rect.fromLTWH(
+                0,
+                seaTop - 18,
+                size.width,
+                size.height - seaTop + 18,
+              ),
+            ),
     );
 
     final causticPaint = Paint()
