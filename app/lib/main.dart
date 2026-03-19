@@ -1987,6 +1987,22 @@ class _OceanGlassShellPainter extends CustomPainter {
         ..strokeWidth = 0.85
         ..color = Colors.white.withValues(alpha: 0.18),
     );
+    canvas.drawArc(
+      Rect.fromLTWH(
+        size.width * 0.02,
+        size.height * 0.56,
+        size.width * 0.96,
+        size.height * 0.42,
+      ),
+      math.pi * 0.10,
+      math.pi * 0.80,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 1.18
+        ..color = Colors.white.withValues(alpha: 0.30),
+    );
     final shadowRect = Rect.fromCenter(
       center: Offset(size.width * 0.5, size.height + 8),
       width: size.width * 0.68,
@@ -2007,74 +2023,50 @@ class _OceanGlassShellPainter extends CustomPainter {
   void _paintPeripheralMist(Canvas canvas, Size size, RRect outer) {
     canvas.save();
     canvas.clipRRect(outer);
-    _paintMistBlob(
+    canvas.drawRRect(
+      outer,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 16
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16)
+        ..color = Colors.white.withValues(alpha: 0.035),
+    );
+    canvas.drawRRect(
+      outer,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 8
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8)
+        ..color = Colors.white.withValues(alpha: 0.026),
+    );
+    _paintBottomMist(
       canvas,
       Rect.fromLTWH(
-        -size.width * 0.16,
-        -size.height * 0.18,
-        size.width * 0.56,
+        size.width * -0.04,
+        size.height * 0.56,
+        size.width * 0.66,
         size.height * 0.40,
-      ),
-      alpha: 0.088,
-    );
-    _paintMistBlob(
-      canvas,
-      Rect.fromLTWH(
-        size.width * 0.60,
-        -size.height * 0.14,
-        size.width * 0.48,
-        size.height * 0.36,
-      ),
-      alpha: 0.088,
-    );
-    _paintMistBlob(
-      canvas,
-      Rect.fromLTWH(
-        -size.width * 0.14,
-        size.height * 0.18,
-        size.width * 0.26,
-        size.height * 0.68,
-      ),
-      alpha: 0.088,
-    );
-    _paintMistBlob(
-      canvas,
-      Rect.fromLTWH(
-        size.width * 0.88,
-        size.height * 0.14,
-        size.width * 0.20,
-        size.height * 0.66,
-      ),
-      alpha: 0.088,
-    );
-    _paintMistBlob(
-      canvas,
-      Rect.fromLTWH(
-        size.width * 0.02,
-        size.height * 0.58,
-        size.width * 0.42,
-        size.height * 0.34,
       ),
       alpha: 0.072,
     );
-    _paintMistBlob(
+    _paintBottomMist(
       canvas,
       Rect.fromLTWH(
-        size.width * 0.60,
-        size.height * 0.56,
-        size.width * 0.36,
-        size.height * 0.32,
+        size.width * 0.44,
+        size.height * 0.54,
+        size.width * 0.62,
+        size.height * 0.38,
       ),
       alpha: 0.066,
     );
     canvas.restore();
   }
 
-  void _paintMistBlob(Canvas canvas, Rect rect, {required double alpha}) {
+  void _paintBottomMist(Canvas canvas, Rect rect, {required double alpha}) {
     canvas.drawOval(
       rect,
       Paint()
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18)
         ..shader = RadialGradient(
           colors: <Color>[
             Colors.white.withValues(alpha: alpha),
