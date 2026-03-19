@@ -1920,23 +1920,12 @@ class _OceanGlassShellPainter extends CustomPainter {
       canvas,
       size,
       outer,
-      bandThickness: 18,
-      scaleX: 1.08,
-      scaleY: 1.11,
-      shiftX: 10,
-      shiftY: -6,
+      bandThickness: 13,
+      scaleX: 1.06,
+      scaleY: 1.08,
+      shiftX: 7,
+      shiftY: -4,
       tint: const Color(0x1094D8FF),
-    );
-    _paintWaveIntersectionRefraction(
-      canvas,
-      size,
-      outer,
-      bandThickness: 9,
-      scaleX: 1.03,
-      scaleY: 1.05,
-      shiftX: 4,
-      shiftY: -2,
-      tint: const Color(0x0A8DD8FF),
     );
     canvas.drawRRect(
       outer,
@@ -1955,54 +1944,27 @@ class _OceanGlassShellPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.85,
     );
-    canvas.drawArc(
-      Rect.fromLTWH(
-        size.width * 0.05,
-        size.height * 0.06,
-        size.width * 0.50,
-        size.height * 0.26,
-      ),
-      math.pi * 1.03,
-      math.pi * 0.36,
-      false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = 0.95
-        ..color = Colors.white.withValues(alpha: 0.34),
+    canvas.save();
+    canvas.clipRect(
+      Rect.fromLTWH(0, size.height * 0.60, size.width, size.height * 0.40),
     );
-    canvas.drawArc(
-      Rect.fromLTWH(
-        size.width * 0.67,
-        size.height * 0.19,
-        size.width * 0.16,
-        size.height * 0.18,
-      ),
-      -math.pi * 0.08,
-      math.pi * 0.30,
-      false,
+    canvas.drawRRect(
+      outer,
       Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            Colors.transparent,
+            Colors.white.withValues(alpha: 0.16),
+            Colors.white.withValues(alpha: 0.38),
+          ],
+          stops: const <double>[0.0, 0.48, 1.0],
+        ).createShader(rect)
         ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = 0.85
-        ..color = Colors.white.withValues(alpha: 0.18),
+        ..strokeWidth = 1.18,
     );
-    canvas.drawArc(
-      Rect.fromLTWH(
-        size.width * 0.02,
-        size.height * 0.56,
-        size.width * 0.96,
-        size.height * 0.42,
-      ),
-      math.pi * 0.10,
-      math.pi * 0.80,
-      false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = 1.18
-        ..color = Colors.white.withValues(alpha: 0.30),
-    );
+    canvas.restore();
     final shadowRect = Rect.fromCenter(
       center: Offset(size.width * 0.5, size.height + 8),
       width: size.width * 0.68,
@@ -2111,9 +2073,11 @@ class _OceanGlassShellPainter extends CustomPainter {
 
   double _oceanWaveY(Size size, double x, double seaTop) {
     final progress = x / size.width;
+    final primaryPhase = t * math.pi * 2;
+    final secondaryPhase = t * math.pi * 4 + math.pi * 0.35;
     return seaTop +
-        math.sin(progress * math.pi * 2.3 + t * math.pi * 2) * 8 +
-        math.sin(progress * math.pi * 5.6 - t * math.pi * 1.6) * 4;
+        math.sin(progress * math.pi * 2.3 + primaryPhase) * 8 +
+        math.sin(progress * math.pi * 5.6 - secondaryPhase) * 4;
   }
 
   void _paintOceanRefraction(Canvas canvas, Size size, Color tint) {
@@ -2148,12 +2112,14 @@ class _OceanGlassShellPainter extends CustomPainter {
         ).createShader(seaRect),
     );
     final wavePath = Path()..moveTo(0, seaTop);
+    final primaryPhase = t * math.pi * 2;
+    final secondaryPhase = t * math.pi * 4 + math.pi * 0.35;
     for (double x = 0; x <= size.width; x += 6) {
       final progress = x / size.width;
       final y =
           seaTop +
-          math.sin(progress * math.pi * 2.3 + t * math.pi * 2) * 8 +
-          math.sin(progress * math.pi * 5.6 - t * math.pi * 1.6) * 4;
+          math.sin(progress * math.pi * 2.3 + primaryPhase) * 8 +
+          math.sin(progress * math.pi * 5.6 - secondaryPhase) * 4;
       wavePath.lineTo(x, y);
     }
     wavePath
