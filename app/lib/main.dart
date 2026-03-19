@@ -401,6 +401,11 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   }
 
   void _handlePanelDragStart(DragStartDetails details) {
+    if (_calendarSheetController.value > 0.02) {
+      _activeDragMode = _EdgeDragMode.none;
+      _gestureArmedFromOrb = false;
+      return;
+    }
     final canResumeLeftPanel = _panelController.value > 0.02;
     final canResumeRightPanel = _oceanPanelController.value > 0.02;
 
@@ -1740,10 +1745,10 @@ class ReplicaCard extends StatelessWidget {
     }
     final hsl = HSLColor.fromColor(color);
     final softened = hsl
-        .withSaturation((hsl.saturation * 0.24).clamp(0.0, 1.0))
-        .withLightness((hsl.lightness + 0.18).clamp(0.0, 1.0))
+        .withSaturation((hsl.saturation * 0.34).clamp(0.0, 1.0))
+        .withLightness((hsl.lightness + 0.15).clamp(0.0, 1.0))
         .toColor();
-    return Color.lerp(softened, Colors.white, 0.10)!;
+    return Color.lerp(softened, Colors.white, 0.05)!;
   }
 }
 
@@ -3288,16 +3293,6 @@ class DynamicIslandDripPainter extends CustomPainter {
     );
 
     final orbRect = Rect.fromCircle(center: center, radius: radius);
-    final outerPath = Path()..addOval(orbRect);
-    final innerOrbRect = Rect.fromCircle(
-      center: center,
-      radius: math.max(0.0, radius - radius * 0.13),
-    );
-    final edgeBand = Path.combine(
-      PathOperation.difference,
-      outerPath,
-      Path()..addOval(innerOrbRect),
-    );
     canvas.drawCircle(
       center,
       radius,
@@ -3329,54 +3324,23 @@ class DynamicIslandDripPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.7,
     );
-    canvas.drawPath(
-      edgeBand,
+    canvas.drawCircle(
+      center,
+      radius - 0.2,
       Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: <Color>[
-            Colors.white.withValues(alpha: 0.42),
-            Colors.white.withValues(alpha: 0.20),
-            Colors.white.withValues(alpha: 0.32),
-          ],
-          stops: const <double>[0.0, 0.48, 1.0],
-        ).createShader(orbRect)
-        ..style = PaintingStyle.fill
+        ..color = Colors.white.withValues(alpha: 0.18)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = radius * 0.14
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.08)
         ..isAntiAlias = true,
     );
-    canvas.save();
-    canvas.clipRect(
-      Rect.fromLTWH(
-        center.dx - radius,
-        center.dy + radius * 0.36,
-        radius * 2,
-        radius * 0.64,
-      ),
-    );
-    canvas.drawPath(
-      edgeBand,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[
-            Colors.transparent,
-            const Color(0x0B9CC8FF),
-            const Color(0x249CC8FF),
-          ],
-          stops: const <double>[0.0, 0.55, 1.0],
-        ).createShader(orbRect)
-        ..style = PaintingStyle.fill
-        ..isAntiAlias = true,
-    );
-    canvas.restore();
     canvas.save();
     canvas.clipRect(
       Rect.fromLTWH(center.dx - radius, center.dy, radius * 2, radius),
     );
-    canvas.drawPath(
-      edgeBand,
+    canvas.drawCircle(
+      center,
+      radius - 0.4,
       Paint()
         ..shader = LinearGradient(
           begin: Alignment.topCenter,
@@ -3384,14 +3348,20 @@ class DynamicIslandDripPainter extends CustomPainter {
           colors: <Color>[
             Colors.transparent,
             Colors.white.withValues(alpha: 0.14),
-            Colors.white.withValues(alpha: 0.32),
+            Colors.white.withValues(alpha: 0.30),
           ],
-          stops: const <double>[0.0, 0.45, 1.0],
+          stops: const <double>[0.0, 0.44, 1.0],
         ).createShader(orbRect)
-        ..style = PaintingStyle.fill
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = radius * 0.16
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.09)
         ..isAntiAlias = true,
     );
     canvas.restore();
+    canvas.save();
+    canvas.clipRect(
+      Rect.fromLTWH(center.dx - radius, center.dy, radius * 2, radius),
+    );
     canvas.drawCircle(
       center,
       radius - 2.2,
@@ -3401,12 +3371,13 @@ class DynamicIslandDripPainter extends CustomPainter {
           end: Alignment.bottomCenter,
           colors: <Color>[
             Colors.white.withValues(alpha: 0.03),
-            const Color(0x149AC7FF),
+            const Color(0x249AC7FF),
           ],
         ).createShader(orbRect)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.58,
+        ..strokeWidth = 0.52,
     );
+    canvas.restore();
 
     _drawOrbLiquid(canvas, center: center, radius: radius);
   }
@@ -3523,7 +3494,7 @@ class DynamicIslandDripPainter extends CustomPainter {
           ],
         ).createShader(Rect.fromCircle(center: center, radius: radius))
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.82,
+        ..strokeWidth = 0.72,
     );
 
     _drawOrbLabel(canvas, center: center, radius: radius);
