@@ -1915,6 +1915,7 @@ class _OceanGlassShellPainter extends CustomPainter {
         ..color = Colors.white.withValues(alpha: 0.005)
         ..style = PaintingStyle.fill,
     );
+    _paintPeripheralMist(canvas, size, outer);
     _paintWaveIntersectionRefraction(
       canvas,
       size,
@@ -2000,6 +2001,68 @@ class _OceanGlassShellPainter extends CustomPainter {
             Colors.transparent,
           ],
         ).createShader(shadowRect),
+    );
+  }
+
+  void _paintPeripheralMist(Canvas canvas, Size size, RRect outer) {
+    canvas.save();
+    canvas.clipRRect(outer);
+    _paintMistBlob(
+      canvas,
+      Rect.fromLTWH(
+        -size.width * 0.16,
+        -size.height * 0.18,
+        size.width * 0.56,
+        size.height * 0.40,
+      ),
+      alpha: 0.072,
+    );
+    _paintMistBlob(
+      canvas,
+      Rect.fromLTWH(
+        size.width * 0.60,
+        -size.height * 0.14,
+        size.width * 0.48,
+        size.height * 0.36,
+      ),
+      alpha: 0.054,
+    );
+    _paintMistBlob(
+      canvas,
+      Rect.fromLTWH(
+        -size.width * 0.14,
+        size.height * 0.18,
+        size.width * 0.26,
+        size.height * 0.68,
+      ),
+      alpha: 0.030,
+    );
+    _paintMistBlob(
+      canvas,
+      Rect.fromLTWH(
+        size.width * 0.88,
+        size.height * 0.14,
+        size.width * 0.20,
+        size.height * 0.66,
+      ),
+      alpha: 0.026,
+    );
+    canvas.restore();
+  }
+
+  void _paintMistBlob(Canvas canvas, Rect rect, {required double alpha}) {
+    canvas.drawOval(
+      rect,
+      Paint()
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16)
+        ..shader = RadialGradient(
+          colors: <Color>[
+            Colors.white.withValues(alpha: alpha),
+            Colors.white.withValues(alpha: alpha * 0.42),
+            Colors.transparent,
+          ],
+          stops: const <double>[0.0, 0.44, 1.0],
+        ).createShader(rect),
     );
   }
 
