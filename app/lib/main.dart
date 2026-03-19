@@ -1916,12 +1916,12 @@ class _OceanGlassShellPainter extends CustomPainter {
     final rect = Offset.zero & size;
     final outer = RRect.fromRectAndRadius(rect, Radius.circular(radius));
     final shellOuter = RRect.fromRectAndRadius(
-      rect.deflate(2),
-      Radius.circular(radius - 2),
+      rect.deflate(1.0),
+      Radius.circular(radius - 1.0),
     );
     final shellInner = RRect.fromRectAndRadius(
-      rect.deflate(12),
-      Radius.circular(radius - 12),
+      rect.deflate(5.5),
+      Radius.circular(radius - 5.5),
     );
     final shellPath = Path.combine(
       PathOperation.difference,
@@ -2031,10 +2031,10 @@ class _OceanGlassShellPainter extends CustomPainter {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: <Color>[
-            Colors.white.withValues(alpha: 0.58),
-            Colors.white.withValues(alpha: 0.14),
-            const Color(0x269DD8FF),
-            Colors.white.withValues(alpha: 0.10),
+            Colors.white.withValues(alpha: 0.28),
+            Colors.white.withValues(alpha: 0.06),
+            const Color(0x149DD8FF),
+            Colors.white.withValues(alpha: 0.04),
           ],
           stops: const <double>[0.0, 0.24, 0.72, 1.0],
         ).createShader(rect),
