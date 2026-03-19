@@ -1920,11 +1920,12 @@ class _OceanGlassShellPainter extends CustomPainter {
       canvas,
       size,
       outer,
-      bandThickness: 13,
-      scaleX: 1.06,
-      scaleY: 1.08,
-      shiftX: 7,
-      shiftY: -4,
+      bandThickness: 12,
+      featherSigma: 7,
+      scaleX: 1.035,
+      scaleY: 1.05,
+      shiftX: 4,
+      shiftY: -2,
       tint: const Color(0x1094D8FF),
     );
     canvas.drawRRect(
@@ -2045,6 +2046,7 @@ class _OceanGlassShellPainter extends CustomPainter {
     Size size,
     RRect outer, {
     required double bandThickness,
+    required double featherSigma,
     required double scaleX,
     required double scaleY,
     required double shiftX,
@@ -2061,13 +2063,21 @@ class _OceanGlassShellPainter extends CustomPainter {
       band.lineTo(x, _oceanWaveY(size, x, seaTop) + bandThickness);
     }
     band.close();
-    canvas.save();
+    canvas.saveLayer(Rect.fromLTWH(0, 0, size.width, size.height), Paint());
     canvas.clipRRect(outer);
-    canvas.clipPath(band);
+    canvas.save();
     canvas.translate(size.width * 0.5, size.height * 0.5);
     canvas.scale(scaleX, scaleY);
     canvas.translate(-size.width * 0.5 + shiftX, -size.height * 0.5 + shiftY);
     _paintOceanRefraction(canvas, size, tint);
+    canvas.restore();
+    canvas.drawPath(
+      band,
+      Paint()
+        ..blendMode = BlendMode.dstIn
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, featherSigma)
+        ..color = Colors.white,
+    );
     canvas.restore();
   }
 
