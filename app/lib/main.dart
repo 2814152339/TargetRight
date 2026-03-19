@@ -2015,7 +2015,7 @@ class _OceanGlassShellPainter extends CustomPainter {
         size.width * 0.56,
         size.height * 0.40,
       ),
-      alpha: 0.106,
+      alpha: 0.088,
     );
     _paintMistBlob(
       canvas,
@@ -2025,7 +2025,7 @@ class _OceanGlassShellPainter extends CustomPainter {
         size.width * 0.48,
         size.height * 0.36,
       ),
-      alpha: 0.082,
+      alpha: 0.088,
     );
     _paintMistBlob(
       canvas,
@@ -2035,7 +2035,7 @@ class _OceanGlassShellPainter extends CustomPainter {
         size.width * 0.26,
         size.height * 0.68,
       ),
-      alpha: 0.050,
+      alpha: 0.088,
     );
     _paintMistBlob(
       canvas,
@@ -2045,7 +2045,7 @@ class _OceanGlassShellPainter extends CustomPainter {
         size.width * 0.20,
         size.height * 0.66,
       ),
-      alpha: 0.046,
+      alpha: 0.088,
     );
     _paintMistBlob(
       canvas,
