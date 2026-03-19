@@ -1909,44 +1909,44 @@ class _OceanGlassShellPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
     final outer = RRect.fromRectAndRadius(rect, Radius.circular(radius));
-    final edgeOuter = RRect.fromRectAndRadius(
-      rect.deflate(0.8),
-      Radius.circular(radius - 0.8),
-    );
-    final edgeInner = RRect.fromRectAndRadius(
-      rect.deflate(12.0),
-      Radius.circular(radius - 12.0),
-    );
-    final edgeBand = Path.combine(
-      PathOperation.difference,
-      Path()..addRRect(edgeOuter),
-      Path()..addRRect(edgeInner),
-    );
+    final outerBand = _buildBandPath(rect, outerInset: 0.8, innerInset: 3.2);
+    final midBand = _buildBandPath(rect, outerInset: 3.0, innerInset: 6.8);
+    final innerBand = _buildBandPath(rect, outerInset: 6.4, innerInset: 10.6);
     canvas.drawRRect(
       outer,
       Paint()
-        ..color = Colors.white.withValues(alpha: 0.008)
+        ..color = Colors.white.withValues(alpha: 0.005)
         ..style = PaintingStyle.fill,
     );
     _paintEdgeRefraction(
       canvas,
       size,
-      edgeBand,
-      scaleX: 1.12,
-      scaleY: 1.06,
-      shiftX: 10,
+      outerBand,
+      scaleX: 1.07,
+      scaleY: 1.04,
+      shiftX: 7,
       shiftY: -6,
-      tint: const Color(0x1894D8FF),
+      tint: const Color(0x1094D8FF),
     );
     _paintEdgeRefraction(
       canvas,
       size,
-      edgeBand,
-      scaleX: 1.06,
-      scaleY: 1.10,
-      shiftX: -8,
-      shiftY: -12,
-      tint: const Color(0x10D5F2FF),
+      midBand,
+      scaleX: 1.045,
+      scaleY: 1.025,
+      shiftX: -4,
+      shiftY: -6,
+      tint: const Color(0x0CCAE9FF),
+    );
+    _paintEdgeRefraction(
+      canvas,
+      size,
+      innerBand,
+      scaleX: 1.02,
+      scaleY: 1.015,
+      shiftX: 2,
+      shiftY: -2,
+      tint: const Color(0x0898D8FF),
     );
     canvas.drawRRect(
       outer,
@@ -1955,21 +1955,21 @@ class _OceanGlassShellPainter extends CustomPainter {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: <Color>[
-            Colors.white.withValues(alpha: 0.28),
+            Colors.white.withValues(alpha: 0.22),
             Colors.white.withValues(alpha: 0.06),
-            Colors.white.withValues(alpha: 0.03),
-            const Color(0x1A90D4FF),
+            Colors.transparent,
+            const Color(0x0C90D4FF),
           ],
-          stops: const <double>[0.0, 0.18, 0.72, 1.0],
+          stops: const <double>[0.0, 0.14, 0.70, 1.0],
         ).createShader(rect)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0,
+        ..strokeWidth = 0.8,
     );
     canvas.drawPath(
-      edgeBand,
+      outerBand,
       Paint()
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5)
-        ..color = Colors.white.withValues(alpha: 0.022),
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3)
+        ..color = Colors.white.withValues(alpha: 0.010),
     );
     canvas.drawArc(
       Rect.fromLTWH(
@@ -1984,8 +1984,8 @@ class _OceanGlassShellPainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
-        ..strokeWidth = 1.15
-        ..color = Colors.white.withValues(alpha: 0.38),
+        ..strokeWidth = 1.0
+        ..color = Colors.white.withValues(alpha: 0.28),
     );
     canvas.drawArc(
       Rect.fromLTWH(
@@ -2000,8 +2000,8 @@ class _OceanGlassShellPainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
-        ..strokeWidth = 0.90
-        ..color = Colors.white.withValues(alpha: 0.22),
+        ..strokeWidth = 0.85
+        ..color = Colors.white.withValues(alpha: 0.16),
     );
     final shadowRect = Rect.fromCenter(
       center: Offset(size.width * 0.5, size.height + 8),
@@ -2017,6 +2017,26 @@ class _OceanGlassShellPainter extends CustomPainter {
             Colors.transparent,
           ],
         ).createShader(shadowRect),
+    );
+  }
+
+  Path _buildBandPath(
+    Rect rect, {
+    required double outerInset,
+    required double innerInset,
+  }) {
+    final outerBand = RRect.fromRectAndRadius(
+      rect.deflate(outerInset),
+      Radius.circular(radius - outerInset),
+    );
+    final innerBand = RRect.fromRectAndRadius(
+      rect.deflate(innerInset),
+      Radius.circular(radius - innerInset),
+    );
+    return Path.combine(
+      PathOperation.difference,
+      Path()..addRRect(outerBand),
+      Path()..addRRect(innerBand),
     );
   }
 
