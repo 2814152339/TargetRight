@@ -3393,23 +3393,28 @@ class DynamicIslandDripPainter extends CustomPainter {
     final right = center.dx + radius;
     final fillLockProgress = _normalize(orbFill, 0.92, 1.0);
     final motionMultiplier = 1 - _easeOutCubic(fillLockProgress);
+    final fillTop = center.dy - radius;
+    final lockedLiquidTop = _lerp(
+      liquidTop,
+      fillTop,
+      _easeOutCubic(fillLockProgress),
+    );
     final waveA =
-        (4.5 + math.sin(t * math.pi * 2).abs() * 2.6) *
-        (0.08 + motionMultiplier * 0.92);
+        (4.5 + math.sin(t * math.pi * 2).abs() * 2.6) * motionMultiplier;
     final waveB =
         (1.8 + math.cos(t * math.pi * 2.6).abs() * 1.4) * motionMultiplier;
     final tiltHeight = liquidTilt * radius * 0.22 * motionMultiplier;
     final sloshHeight = sloshing * radius * 0.10 * motionMultiplier;
     final minSurfaceY = _lerp(
       center.dy - radius * 0.92,
-      center.dy - radius * 0.995,
+      fillTop,
       _easeOutCubic(fillLockProgress),
     );
     final maxSurfaceY = center.dy + radius * 0.90;
 
     final liquidPath = Path()
       ..moveTo(left, center.dy + radius)
-      ..lineTo(left, liquidTop);
+      ..lineTo(left, lockedLiquidTop);
 
     for (var x = left; x <= right; x += 4) {
       final progress = (x - left) / (right - left);
@@ -3432,7 +3437,7 @@ class DynamicIslandDripPainter extends CustomPainter {
               sloshHeight *
               0.32 *
               edgeFalloff;
-      final surfaceY = (liquidTop + slope + wave + sloshWave).clamp(
+      final surfaceY = (lockedLiquidTop + slope + wave + sloshWave).clamp(
         minSurfaceY,
         maxSurfaceY,
       );
