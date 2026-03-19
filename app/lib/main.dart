@@ -1945,15 +1945,15 @@ class _OceanGlassShellPainter extends CustomPainter {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: <Color>[
-            Colors.white.withValues(alpha: 0.18),
-            Colors.white.withValues(alpha: 0.03),
+            Colors.white.withValues(alpha: 0.28),
+            Colors.white.withValues(alpha: 0.05),
             Colors.transparent,
-            const Color(0x0890D4FF),
+            const Color(0x1490D4FF),
           ],
           stops: const <double>[0.0, 0.10, 0.72, 1.0],
         ).createShader(rect)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.7,
+        ..strokeWidth = 0.85,
     );
     canvas.drawArc(
       Rect.fromLTWH(
@@ -1969,7 +1969,7 @@ class _OceanGlassShellPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
         ..strokeWidth = 0.95
-        ..color = Colors.white.withValues(alpha: 0.24),
+        ..color = Colors.white.withValues(alpha: 0.34),
     );
     canvas.drawArc(
       Rect.fromLTWH(
@@ -1985,7 +1985,7 @@ class _OceanGlassShellPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
         ..strokeWidth = 0.85
-        ..color = Colors.white.withValues(alpha: 0.12),
+        ..color = Colors.white.withValues(alpha: 0.18),
     );
     final shadowRect = Rect.fromCenter(
       center: Offset(size.width * 0.5, size.height + 8),
@@ -2015,7 +2015,7 @@ class _OceanGlassShellPainter extends CustomPainter {
         size.width * 0.56,
         size.height * 0.40,
       ),
-      alpha: 0.072,
+      alpha: 0.106,
     );
     _paintMistBlob(
       canvas,
@@ -2025,7 +2025,7 @@ class _OceanGlassShellPainter extends CustomPainter {
         size.width * 0.48,
         size.height * 0.36,
       ),
-      alpha: 0.054,
+      alpha: 0.082,
     );
     _paintMistBlob(
       canvas,
@@ -2035,7 +2035,7 @@ class _OceanGlassShellPainter extends CustomPainter {
         size.width * 0.26,
         size.height * 0.68,
       ),
-      alpha: 0.030,
+      alpha: 0.050,
     );
     _paintMistBlob(
       canvas,
@@ -2045,7 +2045,27 @@ class _OceanGlassShellPainter extends CustomPainter {
         size.width * 0.20,
         size.height * 0.66,
       ),
-      alpha: 0.026,
+      alpha: 0.046,
+    );
+    _paintMistBlob(
+      canvas,
+      Rect.fromLTWH(
+        size.width * 0.02,
+        size.height * 0.58,
+        size.width * 0.42,
+        size.height * 0.34,
+      ),
+      alpha: 0.072,
+    );
+    _paintMistBlob(
+      canvas,
+      Rect.fromLTWH(
+        size.width * 0.60,
+        size.height * 0.56,
+        size.width * 0.36,
+        size.height * 0.32,
+      ),
+      alpha: 0.066,
     );
     canvas.restore();
   }
