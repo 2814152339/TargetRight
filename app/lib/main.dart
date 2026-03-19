@@ -1990,55 +1990,32 @@ class _OceanGlassShellPainter extends CustomPainter {
       outer,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 16
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16)
-        ..color = Colors.white.withValues(alpha: 0.035),
+        ..strokeWidth = 20
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18)
+        ..color = Colors.white.withValues(alpha: 0.054),
     );
     canvas.drawRRect(
       outer,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 8
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8)
-        ..color = Colors.white.withValues(alpha: 0.026),
+        ..strokeWidth = 10
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10)
+        ..color = Colors.white.withValues(alpha: 0.032),
     );
-    _paintBottomMist(
-      canvas,
-      Rect.fromLTWH(
-        size.width * -0.04,
-        size.height * 0.56,
-        size.width * 0.66,
-        size.height * 0.40,
-      ),
-      alpha: 0.072,
+    canvas.save();
+    canvas.clipRect(
+      Rect.fromLTWH(0, size.height * 0.54, size.width, size.height * 0.46),
     );
-    _paintBottomMist(
-      canvas,
-      Rect.fromLTWH(
-        size.width * 0.44,
-        size.height * 0.54,
-        size.width * 0.62,
-        size.height * 0.38,
-      ),
-      alpha: 0.066,
+    canvas.drawRRect(
+      outer,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 18
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18)
+        ..color = Colors.white.withValues(alpha: 0.072),
     );
     canvas.restore();
-  }
-
-  void _paintBottomMist(Canvas canvas, Rect rect, {required double alpha}) {
-    canvas.drawOval(
-      rect,
-      Paint()
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18)
-        ..shader = RadialGradient(
-          colors: <Color>[
-            Colors.white.withValues(alpha: alpha),
-            Colors.white.withValues(alpha: alpha * 0.42),
-            Colors.transparent,
-          ],
-          stops: const <double>[0.0, 0.44, 1.0],
-        ).createShader(rect),
-    );
+    canvas.restore();
   }
 
   void _paintWaveIntersectionRefraction(
@@ -2107,20 +2084,6 @@ class _OceanGlassShellPainter extends CustomPainter {
     );
 
     final seaTop = size.height * 0.62;
-    final seaRect = Rect.fromLTWH(0, seaTop, size.width, size.height - seaTop);
-    canvas.drawRect(
-      seaRect,
-      Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[
-            Color(0xFF0E3E67),
-            Color(0xFF0A2C4B),
-            Color(0xFF071C31),
-          ],
-        ).createShader(seaRect),
-    );
     final wavePath = Path()..moveTo(0, seaTop);
     final primaryPhase = t * math.pi * 2;
     final secondaryPhase = t * math.pi * 4 + math.pi * 0.35;
@@ -2139,15 +2102,18 @@ class _OceanGlassShellPainter extends CustomPainter {
     canvas.drawPath(
       wavePath,
       Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[
-            Color(0xC02D7FC6),
-            Color(0xE0104B88),
-            Color(0xF0062746),
-          ],
-        ).createShader(seaRect),
+        ..shader =
+            LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: <Color>[
+                const Color(0xD14A98E0),
+                const Color(0xE12D78C2),
+                const Color(0xE0185D9A),
+              ],
+            ).createShader(
+              Rect.fromLTWH(0, seaTop, size.width, size.height - seaTop),
+            ),
     );
 
     final causticPaint = Paint()
