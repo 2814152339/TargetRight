@@ -3231,6 +3231,16 @@ class DynamicIslandDripPainter extends CustomPainter {
     );
 
     final orbRect = Rect.fromCircle(center: center, radius: radius);
+    final outerPath = Path()..addOval(orbRect);
+    final innerOrbRect = Rect.fromCircle(
+      center: center,
+      radius: math.max(0.0, radius - radius * 0.13),
+    );
+    final edgeBand = Path.combine(
+      PathOperation.difference,
+      outerPath,
+      Path()..addOval(innerOrbRect),
+    );
     canvas.drawCircle(
       center,
       radius,
@@ -3238,9 +3248,9 @@ class DynamicIslandDripPainter extends CustomPainter {
         ..shader = RadialGradient(
           center: const Alignment(-0.18, -0.22),
           colors: <Color>[
-            Colors.white.withValues(alpha: 0.40),
-            Colors.white.withValues(alpha: 0.18),
-            Colors.white.withValues(alpha: 0.06),
+            Colors.white.withValues(alpha: 0.72),
+            Colors.white.withValues(alpha: 0.34),
+            Colors.white.withValues(alpha: 0.14),
           ],
           stops: <double>[0.0, 0.62, 1.0],
         ).createShader(orbRect)
@@ -3255,13 +3265,50 @@ class DynamicIslandDripPainter extends CustomPainter {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: <Color>[
-            Colors.white.withValues(alpha: 0.24),
-            Colors.white.withValues(alpha: 0.03),
+            Colors.white.withValues(alpha: 0.34),
+            Colors.white.withValues(alpha: 0.08),
           ],
         ).createShader(orbRect)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4,
+        ..strokeWidth = 1.7,
     );
+    canvas.drawPath(
+      edgeBand,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Colors.white.withValues(alpha: 0.42),
+            Colors.white.withValues(alpha: 0.20),
+            Colors.white.withValues(alpha: 0.32),
+          ],
+          stops: const <double>[0.0, 0.48, 1.0],
+        ).createShader(orbRect)
+        ..style = PaintingStyle.fill
+        ..isAntiAlias = true,
+    );
+    canvas.save();
+    canvas.clipRect(
+      Rect.fromLTWH(center.dx - radius, center.dy, radius * 2, radius),
+    );
+    canvas.drawPath(
+      edgeBand,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            Colors.transparent,
+            Colors.white.withValues(alpha: 0.14),
+            Colors.white.withValues(alpha: 0.32),
+          ],
+          stops: const <double>[0.0, 0.45, 1.0],
+        ).createShader(orbRect)
+        ..style = PaintingStyle.fill
+        ..isAntiAlias = true,
+    );
+    canvas.restore();
 
     _drawOrbLiquid(canvas, center: center, radius: radius);
   }
@@ -3350,15 +3397,14 @@ class DynamicIslandDripPainter extends CustomPainter {
     required double radius,
   }) {
     final motionOffset = _orbMotionOffset(radius);
-    final orbRect = Rect.fromCircle(center: center, radius: radius);
 
     canvas.drawCircle(
       center,
       radius,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.8
-        ..color = Colors.white.withValues(alpha: 0.54),
+        ..strokeWidth = 2.0
+        ..color = Colors.white.withValues(alpha: 0.70),
     );
 
     canvas.drawCircle(
@@ -3366,26 +3412,8 @@ class DynamicIslandDripPainter extends CustomPainter {
       radius - 1.2,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.9
-        ..color = Colors.white.withValues(alpha: 0.28),
-    );
-
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(
-          center.dx - radius * 0.26 + motionOffset.dx,
-          center.dy - radius * 0.34 + motionOffset.dy,
-        ),
-        width: radius * 0.44,
-        height: radius * 0.78,
-      ),
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[const Color(0x7FFFFFFF), const Color(0x18FFFFFF)],
-        ).createShader(orbRect)
-        ..style = PaintingStyle.fill,
+        ..strokeWidth = 1.0
+        ..color = Colors.white.withValues(alpha: 0.34),
     );
 
     canvas.drawArc(
