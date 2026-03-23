@@ -2619,7 +2619,7 @@ class _OceanGlassShellPainter extends CustomPainter {
     canvas.drawRRect(
       outer,
       Paint()
-        ..color = Colors.white.withValues(alpha: 0.005)
+        ..color = Colors.white.withValues(alpha: 0.002)
         ..style = PaintingStyle.fill,
     );
     _paintPeripheralMist(canvas, size, outer);
@@ -2627,13 +2627,13 @@ class _OceanGlassShellPainter extends CustomPainter {
       canvas,
       size,
       outer,
-      bandThickness: 12,
-      featherSigma: 7,
-      scaleX: 1.035,
-      scaleY: 1.05,
-      shiftX: 4,
-      shiftY: -2,
-      tint: const Color(0x1094D8FF),
+      bandThickness: 8,
+      featherSigma: 9,
+      scaleX: 1.018,
+      scaleY: 1.028,
+      shiftX: 2,
+      shiftY: -1,
+      tint: const Color(0x0E94D8FF),
     );
     canvas.drawRRect(
       outer,
@@ -2643,36 +2643,15 @@ class _OceanGlassShellPainter extends CustomPainter {
           end: Alignment.bottomRight,
           colors: <Color>[
             Colors.white.withValues(alpha: 0.28),
-            Colors.white.withValues(alpha: 0.05),
+            Colors.white.withValues(alpha: 0.06),
             Colors.transparent,
             const Color(0x1490D4FF),
           ],
-          stops: const <double>[0.0, 0.10, 0.72, 1.0],
+          stops: const <double>[0.0, 0.14, 0.78, 1.0],
         ).createShader(rect)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.85,
+        ..strokeWidth = 0.9,
     );
-    canvas.save();
-    canvas.clipRect(
-      Rect.fromLTWH(0, size.height * 0.60, size.width, size.height * 0.40),
-    );
-    canvas.drawRRect(
-      outer,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[
-            Colors.transparent,
-            Colors.white.withValues(alpha: 0.16),
-            Colors.white.withValues(alpha: 0.38),
-          ],
-          stops: const <double>[0.0, 0.48, 1.0],
-        ).createShader(rect)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.18,
-    );
-    canvas.restore();
 
     final shadowRect = Rect.fromCenter(
       center: Offset(size.width * 0.5, size.height + 8),
@@ -2694,35 +2673,85 @@ class _OceanGlassShellPainter extends CustomPainter {
   void _paintPeripheralMist(Canvas canvas, Size size, RRect outer) {
     canvas.save();
     canvas.clipRRect(outer);
-    canvas.drawRRect(
-      outer,
+
+    final leftRect = Rect.fromLTWH(0, 0, size.width * 0.18, size.height);
+    canvas.drawRect(
+      leftRect,
       Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 20
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18)
-        ..color = Colors.white.withValues(alpha: 0.074),
+        ..shader = LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: <Color>[
+            Colors.white.withValues(alpha: 0.10),
+            Colors.white.withValues(alpha: 0.04),
+            Colors.transparent,
+          ],
+          stops: const <double>[0.0, 0.34, 1.0],
+        ).createShader(leftRect)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
     );
-    canvas.drawRRect(
-      outer,
+
+    final rightRect = Rect.fromLTWH(
+      size.width * 0.82,
+      0,
+      size.width * 0.18,
+      size.height,
+    );
+    canvas.drawRect(
+      rightRect,
       Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 10
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10)
-        ..color = Colors.white.withValues(alpha: 0.046),
+        ..shader = LinearGradient(
+          begin: Alignment.centerRight,
+          end: Alignment.centerLeft,
+          colors: <Color>[
+            Colors.white.withValues(alpha: 0.10),
+            Colors.white.withValues(alpha: 0.04),
+            Colors.transparent,
+          ],
+          stops: const <double>[0.0, 0.34, 1.0],
+        ).createShader(rightRect)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
     );
-    canvas.save();
-    canvas.clipRect(
-      Rect.fromLTWH(0, size.height * 0.54, size.width, size.height * 0.46),
-    );
-    canvas.drawRRect(
-      outer,
+
+    final topRect = Rect.fromLTWH(0, 0, size.width, size.height * 0.24);
+    canvas.drawRect(
+      topRect,
       Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 18
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18)
-        ..color = Colors.white.withValues(alpha: 0.090),
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            Colors.white.withValues(alpha: 0.08),
+            Colors.white.withValues(alpha: 0.03),
+            Colors.transparent,
+          ],
+          stops: const <double>[0.0, 0.26, 1.0],
+        ).createShader(topRect)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
     );
-    canvas.restore();
+
+    final bottomRect = Rect.fromLTWH(
+      0,
+      size.height * 0.56,
+      size.width,
+      size.height * 0.44,
+    );
+    canvas.drawRect(
+      bottomRect,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: <Color>[
+            Colors.white.withValues(alpha: 0.14),
+            Colors.white.withValues(alpha: 0.08),
+            Colors.transparent,
+          ],
+          stops: const <double>[0.0, 0.24, 1.0],
+        ).createShader(bottomRect)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
+    );
+
     canvas.restore();
   }
 
