@@ -3134,11 +3134,11 @@ class _CalendarWaterPainter extends CustomPainter {
     final rect = Offset.zero & size;
     final clipPath = Path()
       ..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(18)));
-    final usableHeight = size.height - size.height * 0.06;
-    final liquidTopBase = size.height - usableHeight * waterLevel;
-    final tiltHeight = liquidTilt * size.height * 0.065;
-    final sloshHeight = sloshing * size.height * 0.075;
-    final minSurfaceY = size.height * 0.06;
+    final motionLock = ((waterLevel - 0.9) / 0.1).clamp(0.0, 1.0);
+    final liquidTopBase = size.height * (1 - waterLevel);
+    final tiltHeight = liquidTilt * size.height * 0.065 * (1 - motionLock);
+    final sloshHeight = sloshing * size.height * 0.075 * (1 - motionLock);
+    final minSurfaceY = waterLevel >= 0.999 ? -size.height * 0.08 : 0.0;
     final maxSurfaceY = size.height * 0.90;
     final overscan = size.width * 0.26;
     final surfacePath = Path();
