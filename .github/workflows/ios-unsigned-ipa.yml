@@ -43,8 +43,13 @@ jobs:
       - name: Run Unit Tests
         run: flutter test
 
+      - name: Prepare build log directory
+        run: mkdir -p ../artifacts
+
       - name: Build iOS app (no codesign)
-        run: flutter build ios --release --no-codesign
+        run: |
+          set -o pipefail
+          flutter build ios --release --no-codesign 2>&1 | tee ../artifacts/ios-build-log.txt
 
       - name: Pack unsigned ipa
         run: |
@@ -60,8 +65,15 @@ jobs:
       - name: Prepare artifact
         run: |
           set -euxo pipefail
-          mkdir -p ../artifacts
           cp build/ios/ipa/Runner-unsigned.ipa ../artifacts/Runner-unsigned.ipa
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-log
+          path: artifacts/ios-build-log.txt
+          if-no-files-found: error
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
