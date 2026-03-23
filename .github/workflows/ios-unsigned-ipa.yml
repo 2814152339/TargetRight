@@ -11,7 +11,9 @@ on:
 
 jobs:
   build-ios-ipa:
-    runs-on: macos-14
+    runs-on: macos-26
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     defaults:
       run:
         shell: bash
@@ -29,6 +31,11 @@ jobs:
 
       - name: Flutter Version
         run: flutter --version
+
+      - name: Xcode Version
+        run: |
+          xcode-select -p
+          xcodebuild -version
 
       - name: Install Dependencies
         run: flutter pub get
