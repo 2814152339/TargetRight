@@ -2415,6 +2415,7 @@ class _OceanGlassShellPainter extends CustomPainter {
         ..strokeWidth = 1.18,
     );
     canvas.restore();
+
     final shadowRect = Rect.fromCenter(
       center: Offset(size.width * 0.5, size.height + 8),
       width: size.width * 0.68,
@@ -3949,22 +3950,17 @@ class DynamicIslandDripPainter extends CustomPainter {
     canvas.clipPath(Path()..addOval(orbRect));
     for (var i = 0; i < 3; i++) {
       final phase = (progress + i * 0.18) % 1.0;
-      final rippleRadius = radius * (0.10 + phase * 1.08);
       final opacity = (1 - phase) * reveal;
       if (opacity <= 0.02) {
         continue;
       }
-      canvas.drawCircle(
-        center,
-        rippleRadius,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = _lerp(radius * 0.030, radius * 0.008, phase)
-          ..color = Colors.white.withValues(alpha: 0.22 * opacity)
-          ..maskFilter = MaskFilter.blur(
-            BlurStyle.normal,
-            radius * 0.018 * opacity,
-          ),
+      _drawUploadRippleStroke(
+        canvas,
+        center: center,
+        radius: radius,
+        phase: phase,
+        opacity: opacity,
+        seed: i * 0.93,
       );
     }
     canvas.restore();
@@ -3978,6 +3974,52 @@ class DynamicIslandDripPainter extends CustomPainter {
       startAngle: -math.pi * 0.88,
       endAngle: -math.pi * 0.12,
       opacity: reveal,
+    );
+  }
+
+  void _drawUploadRippleStroke(
+    Canvas canvas, {
+    required Offset center,
+    required double radius,
+    required double phase,
+    required double opacity,
+    required double seed,
+  }) {
+    final baseRadius = radius * (0.10 + phase * 1.02);
+    final xStretch = 1.0 + math.sin(phase * math.pi * 2 + seed) * 0.03;
+    final yStretch = 0.78 + math.cos(phase * math.pi * 2 + seed * 0.8) * 0.05;
+    final path = Path();
+    const segments = 64;
+
+    for (var i = 0; i <= segments; i++) {
+      final t = i / segments;
+      final angle = t * math.pi * 2;
+      final radialJitter =
+          math.sin(angle * 3 + phase * 9 + seed * 0.7) * baseRadius * 0.045 +
+          math.cos(angle * 5 - phase * 7 + seed * 1.3) * baseRadius * 0.022;
+      final localRadius = baseRadius + radialJitter;
+      final point = Offset(
+        center.dx + math.cos(angle) * localRadius * xStretch,
+        center.dy + math.sin(angle) * localRadius * yStretch,
+      );
+      if (i == 0) {
+        path.moveTo(point.dx, point.dy);
+      } else {
+        path.lineTo(point.dx, point.dy);
+      }
+    }
+    path.close();
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = _lerp(radius * 0.026, radius * 0.007, phase)
+        ..color = Colors.white.withValues(alpha: 0.18 * opacity)
+        ..maskFilter = MaskFilter.blur(
+          BlurStyle.normal,
+          radius * 0.015 * opacity,
+        ),
     );
   }
 
