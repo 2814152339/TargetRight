@@ -228,7 +228,14 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       vsync: this,
       duration: const Duration(milliseconds: 200),
       reverseDuration: const Duration(milliseconds: 160),
-    );
+    )..addStatusListener((status) {
+        if (status == AnimationStatus.dismissed && mounted) {
+          setState(() {
+            _uploadCommitted = false;
+            _uploadStartMl = 0;
+          });
+        }
+      });
     _cloudStatsRepository = _LocalCloudStatsRepository();
     _reminderScheduler = _InAppReminderScheduler(onTrigger: _handleReminderDue);
     _startMotionTracking();
@@ -374,6 +381,13 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
             final sceneOffsetY = -calendarProgress * 18;
             final sceneOpacity = 1 - sceneCover;
             final sceneScale = 1 - sceneCover * 0.035;
+            final uploadOverlayActive =
+                _uploadRevealController.value > 0.01 ||
+                _uploadRevealController.isAnimating;
+            final canStartOrbUpload =
+                sceneCover <= 0.02 && _canUploadOrb && !uploadOverlayActive;
+            final canFinishOrbUpload =
+                sceneCover <= 0.02 && uploadOverlayActive;
 
             return LayoutBuilder(
               builder: (context, constraints) {
@@ -447,15 +461,15 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
                                   child: GestureDetector(
                                     behavior: HitTestBehavior.translucent,
                                     onLongPressStart:
-                                        sceneCover > 0.02 || !_canUploadOrb
+                                        !canStartOrbUpload
                                         ? null
                                         : (_) => _handleOrbUploadStart(),
                                     onLongPressEnd:
-                                        sceneCover > 0.02 || !_canUploadOrb
+                                        !canFinishOrbUpload
                                         ? null
                                         : (_) => _handleOrbUploadEnd(),
                                     onLongPressCancel:
-                                        sceneCover > 0.02 || !_canUploadOrb
+                                        !canFinishOrbUpload
                                         ? null
                                         : _handleOrbUploadCancel,
                                   ),
@@ -464,7 +478,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
                                   left: 16,
                                   top: safeTop + 18,
                                   child: _ProfileEntry(
-                                    nickname: '鐢ㄦ埛鏄电О',
+                                    nickname: '\u7528\u6237\u6635\u79f0',
                                     onTap: () {
                                       Navigator.of(context).push(
                                         MaterialPageRoute<void>(
@@ -749,7 +763,9 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   }
 
   void _handleOrbUploadStart() {
-    if (!_canUploadOrb || _uploadRevealController.isAnimating) {
+    if (!_canUploadOrb ||
+        _uploadRevealController.isAnimating ||
+        _uploadRevealController.value > 0.01) {
       return;
     }
     _uploadStartMl = _debugOrbForceFull ? 100 : _orbStoredMl;
@@ -761,14 +777,15 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   }
 
   void _handleOrbUploadEnd() {
-    if (_uploadRevealController.value <= 0.0) {
+    if (_uploadRevealController.value <= 0.0 &&
+        !_uploadRevealController.isAnimating) {
       return;
     }
     if (!_uploadCommitted) {
       _uploadProgressController.stop();
       _uploadProgressController.value = 0;
     }
-    _uploadRevealController.reverse();
+    _uploadRevealController.reverse(from: _uploadRevealController.value);
   }
 
   void _handleOrbUploadCancel() {
@@ -3960,7 +3977,6 @@ class DynamicIslandDripPainter extends CustomPainter {
         radius: radius,
         phase: phase,
         opacity: opacity,
-        seed: i * 0.93,
       );
     }
     canvas.restore();
@@ -3983,42 +3999,63 @@ class DynamicIslandDripPainter extends CustomPainter {
     required double radius,
     required double phase,
     required double opacity,
-    required double seed,
   }) {
-    final baseRadius = radius * (0.10 + phase * 1.02);
-    final xStretch = 1.0 + math.sin(phase * math.pi * 2 + seed) * 0.03;
-    final yStretch = 0.78 + math.cos(phase * math.pi * 2 + seed * 0.8) * 0.05;
-    final path = Path();
-    const segments = 64;
+    final baseRadius = radius * (0.11 + phase * 1.02);
+    final strokeWidth = _lerp(radius * 0.026, radius * 0.008, phase);
+    final rippleRect = Rect.fromCenter(
+      center: Offset(center.dx, center.dy + radius * 0.012 * phase),
+      width: baseRadius * 2.04,
+      height: baseRadius * 1.48,
+    );
+    final shadowRect = rippleRect.shift(Offset(0, strokeWidth * 0.22));
+    final highlightRect = rippleRect.shift(Offset(0, -strokeWidth * 0.10));
 
-    for (var i = 0; i <= segments; i++) {
-      final t = i / segments;
-      final angle = t * math.pi * 2;
-      final radialJitter =
-          math.sin(angle * 3 + phase * 9 + seed * 0.7) * baseRadius * 0.045 +
-          math.cos(angle * 5 - phase * 7 + seed * 1.3) * baseRadius * 0.022;
-      final localRadius = baseRadius + radialJitter;
-      final point = Offset(
-        center.dx + math.cos(angle) * localRadius * xStretch,
-        center.dy + math.sin(angle) * localRadius * yStretch,
-      );
-      if (i == 0) {
-        path.moveTo(point.dx, point.dy);
-      } else {
-        path.lineTo(point.dx, point.dy);
-      }
-    }
-    path.close();
-
-    canvas.drawPath(
-      path,
+    canvas.drawOval(
+      shadowRect,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = _lerp(radius * 0.026, radius * 0.007, phase)
-        ..color = Colors.white.withValues(alpha: 0.18 * opacity)
+        ..strokeWidth = strokeWidth * 1.12
+        ..color = const Color(0xFF4D8BE0).withValues(alpha: 0.18 * opacity)
         ..maskFilter = MaskFilter.blur(
           BlurStyle.normal,
-          radius * 0.015 * opacity,
+          radius * 0.018 * opacity,
+        ),
+    );
+
+    canvas.drawOval(
+      rippleRect,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            Colors.white.withValues(alpha: 0.36 * opacity),
+            const Color(0xFFAED5FF).withValues(alpha: 0.28 * opacity),
+            const Color(0xFF6FA7F5).withValues(alpha: 0.12 * opacity),
+          ],
+          stops: const <double>[0.0, 0.42, 1.0],
+        ).createShader(rippleRect)
+        ..maskFilter = MaskFilter.blur(
+          BlurStyle.normal,
+          radius * 0.010 * opacity,
+        ),
+    );
+
+    canvas.drawArc(
+      highlightRect,
+      math.pi * 1.04,
+      math.pi * 0.92,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = strokeWidth * 0.52
+        ..color = Colors.white.withValues(alpha: 0.34 * opacity)
+        ..maskFilter = MaskFilter.blur(
+          BlurStyle.normal,
+          radius * 0.008 * opacity,
         ),
     );
   }
