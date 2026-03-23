@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -70,18 +71,34 @@ abstract class _CloudStatsRepository {
 }
 
 class _LocalCloudStatsRepository implements _CloudStatsRepository {
+  static const String _userMlKey = 'cloud_stats_user_ml';
+  static const String _totalMlKey = 'cloud_stats_total_ml';
+
   double _userMl = 0;
   double _totalMl = 0;
+  SharedPreferences? _prefs;
+
+  Future<SharedPreferences> _preferences() async {
+    return _prefs ??= await SharedPreferences.getInstance();
+  }
 
   @override
   Future<_CloudStats> fetchStats() async {
+    final prefs = await _preferences();
+    _userMl = prefs.getDouble(_userMlKey) ?? _userMl;
+    _totalMl = prefs.getDouble(_totalMlKey) ?? _totalMl;
     return _CloudStats(userMl: _userMl, totalMl: _totalMl);
   }
 
   @override
   Future<_CloudStats> uploadContribution(double ml) async {
+    final prefs = await _preferences();
+    _userMl = prefs.getDouble(_userMlKey) ?? _userMl;
+    _totalMl = prefs.getDouble(_totalMlKey) ?? _totalMl;
     _userMl += ml;
     _totalMl += ml;
+    await prefs.setDouble(_userMlKey, _userMl);
+    await prefs.setDouble(_totalMlKey, _totalMl);
     return _CloudStats(userMl: _userMl, totalMl: _totalMl);
   }
 }
@@ -4002,16 +4019,12 @@ class DynamicIslandDripPainter extends CustomPainter {
   }) {
     final baseRadius = radius * (0.11 + phase * 1.02);
     final strokeWidth = _lerp(radius * 0.026, radius * 0.008, phase);
-    final rippleRect = Rect.fromCenter(
-      center: Offset(center.dx, center.dy + radius * 0.012 * phase),
-      width: baseRadius * 2.04,
-      height: baseRadius * 1.48,
-    );
-    final shadowRect = rippleRect.shift(Offset(0, strokeWidth * 0.22));
-    final highlightRect = rippleRect.shift(Offset(0, -strokeWidth * 0.10));
+    final rippleRect = Rect.fromCircle(center: center, radius: baseRadius);
+    final shadowCenter = center.translate(0, strokeWidth * 0.22);
 
-    canvas.drawOval(
-      shadowRect,
+    canvas.drawCircle(
+      shadowCenter,
+      baseRadius,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = strokeWidth * 1.12
@@ -4022,8 +4035,9 @@ class DynamicIslandDripPainter extends CustomPainter {
         ),
     );
 
-    canvas.drawOval(
-      rippleRect,
+    canvas.drawCircle(
+      center,
+      baseRadius,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = strokeWidth
@@ -4044,7 +4058,7 @@ class DynamicIslandDripPainter extends CustomPainter {
     );
 
     canvas.drawArc(
-      highlightRect,
+      rippleRect.shift(Offset(0, -strokeWidth * 0.10)),
       math.pi * 1.04,
       math.pi * 0.92,
       false,
@@ -4053,6 +4067,22 @@ class DynamicIslandDripPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round
         ..strokeWidth = strokeWidth * 0.52
         ..color = Colors.white.withValues(alpha: 0.34 * opacity)
+        ..maskFilter = MaskFilter.blur(
+          BlurStyle.normal,
+          radius * 0.008 * opacity,
+        ),
+    );
+
+    canvas.drawArc(
+      rippleRect.shift(Offset(0, strokeWidth * 0.08)),
+      -math.pi * 0.18,
+      math.pi * 0.36,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = strokeWidth * 0.46
+        ..color = const Color(0xFF7FB8FF).withValues(alpha: 0.16 * opacity)
         ..maskFilter = MaskFilter.blur(
           BlurStyle.normal,
           radius * 0.008 * opacity,
