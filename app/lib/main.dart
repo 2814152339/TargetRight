@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -58,10 +59,15 @@ class _ReminderTaskConfig {
 }
 
 class _CloudStats {
-  const _CloudStats({this.userMl = 0, this.totalMl = 0});
+  const _CloudStats({
+    this.userMl = 0,
+    this.totalMl = 0,
+    this.dailyMlByDate = const <String, double>{},
+  });
 
   final double userMl;
   final double totalMl;
+  final Map<String, double> dailyMlByDate;
 }
 
 abstract class _CloudStatsRepository {
@@ -73,13 +79,32 @@ abstract class _CloudStatsRepository {
 class _LocalCloudStatsRepository implements _CloudStatsRepository {
   static const String _userMlKey = 'cloud_stats_user_ml';
   static const String _totalMlKey = 'cloud_stats_total_ml';
+  static const String _dailyMlByDateKey = 'cloud_stats_daily_ml_by_date';
 
   double _userMl = 0;
   double _totalMl = 0;
+  Map<String, double> _dailyMlByDate = <String, double>{};
   SharedPreferences? _prefs;
 
   Future<SharedPreferences> _preferences() async {
     return _prefs ??= await SharedPreferences.getInstance();
+  }
+
+  Map<String, double> _decodeDailyMl(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return <String, double>{};
+    }
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map<String, dynamic>) {
+      return <String, double>{};
+    }
+    return decoded.map<String, double>((String key, dynamic value) {
+      final number = value;
+      if (number is num) {
+        return MapEntry<String, double>(key, number.toDouble());
+      }
+      return const MapEntry<String, double>('', 0);
+    })..remove('');
   }
 
   @override
@@ -87,7 +112,12 @@ class _LocalCloudStatsRepository implements _CloudStatsRepository {
     final prefs = await _preferences();
     _userMl = prefs.getDouble(_userMlKey) ?? _userMl;
     _totalMl = prefs.getDouble(_totalMlKey) ?? _totalMl;
-    return _CloudStats(userMl: _userMl, totalMl: _totalMl);
+    _dailyMlByDate = _decodeDailyMl(prefs.getString(_dailyMlByDateKey));
+    return _CloudStats(
+      userMl: _userMl,
+      totalMl: _totalMl,
+      dailyMlByDate: Map<String, double>.unmodifiable(_dailyMlByDate),
+    );
   }
 
   @override
@@ -95,11 +125,21 @@ class _LocalCloudStatsRepository implements _CloudStatsRepository {
     final prefs = await _preferences();
     _userMl = prefs.getDouble(_userMlKey) ?? _userMl;
     _totalMl = prefs.getDouble(_totalMlKey) ?? _totalMl;
+    _dailyMlByDate = _decodeDailyMl(prefs.getString(_dailyMlByDateKey));
     _userMl += ml;
     _totalMl += ml;
+    final now = DateTime.now();
+    final dateKey =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    _dailyMlByDate[dateKey] = (_dailyMlByDate[dateKey] ?? 0) + ml;
     await prefs.setDouble(_userMlKey, _userMl);
     await prefs.setDouble(_totalMlKey, _totalMl);
-    return _CloudStats(userMl: _userMl, totalMl: _totalMl);
+    await prefs.setString(_dailyMlByDateKey, jsonEncode(_dailyMlByDate));
+    return _CloudStats(
+      userMl: _userMl,
+      totalMl: _totalMl,
+      dailyMlByDate: Map<String, double>.unmodifiable(_dailyMlByDate),
+    );
   }
 }
 
@@ -429,7 +469,8 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
                     ),
                     _CalendarBottomSheet(
                       progress: calendarProgress,
-                      todayMl: _userCollectedMl,
+                      currentOrbMl: _displayOrbMl,
+                      dailyMlByDate: _cloudStats.dailyMlByDate,
                       liquidTilt: _liquidTilt,
                       sloshing: _sloshing,
                     ),
@@ -1461,7 +1502,8 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
               title: Text(isEditing ? '编辑事项' : '新增事项'),
               content: SizedBox(
                 width: 340,
-                child: Column(
+                child: SingleChildScrollView(
+                  child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     TextField(
@@ -1518,6 +1560,7 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                       alignment: Alignment.centerLeft,
                       child: Wrap(
                         spacing: 8,
+                        runSpacing: 8,
                         children: <Widget>[
                           ChoiceChip(
                             label: const Text('系统闹铃'),
@@ -1547,6 +1590,7 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                       ),
                     ),
                   ],
+                ),
                 ),
               ),
               actions: <Widget>[
@@ -2861,13 +2905,15 @@ class _OceanScenePainter extends CustomPainter {
 class _CalendarBottomSheet extends StatefulWidget {
   const _CalendarBottomSheet({
     required this.progress,
-    required this.todayMl,
+    required this.currentOrbMl,
+    required this.dailyMlByDate,
     required this.liquidTilt,
     required this.sloshing,
   });
 
   final double progress;
-  final double todayMl;
+  final double currentOrbMl;
+  final Map<String, double> dailyMlByDate;
   final double liquidTilt;
   final double sloshing;
 
@@ -2937,7 +2983,8 @@ class _CalendarBottomSheetState extends State<_CalendarBottomSheet> {
                       return RepaintBoundary(
                         child: _MonthCalendarView(
                           month: month,
-                          todayMl: widget.todayMl,
+                          currentOrbMl: widget.currentOrbMl,
+                          dailyMlByDate: widget.dailyMlByDate,
                           liquidTilt: optimizedTilt,
                           sloshing: optimizedSloshing,
                         ),
@@ -2965,13 +3012,15 @@ class _MonthCalendarView extends StatelessWidget {
 
   const _MonthCalendarView({
     required this.month,
-    required this.todayMl,
+    required this.currentOrbMl,
+    required this.dailyMlByDate,
     required this.liquidTilt,
     required this.sloshing,
   });
 
   final DateTime month;
-  final double todayMl;
+  final double currentOrbMl;
+  final Map<String, double> dailyMlByDate;
   final double liquidTilt;
   final double sloshing;
 
@@ -3023,10 +3072,11 @@ class _MonthCalendarView extends StatelessWidget {
                   month.year == DateTime.now().year &&
                   month.month == DateTime.now().month &&
                   dayNumber == DateTime.now().day;
-              final dailyMl = isToday
-                  ? todayMl
-                  : ((dayNumber * 37 + month.month * 19) % 120).toDouble();
-              final waterLevel = (dailyMl / 120).clamp(0.0, 1.0);
+              final dateKey =
+                  '${month.year}-${month.month.toString().padLeft(2, '0')}-${dayNumber.toString().padLeft(2, '0')}';
+              final uploadedMl = dailyMlByDate[dateKey] ?? 0;
+              final dailyMl = isToday ? uploadedMl + currentOrbMl : uploadedMl;
+              final waterLevel = (dailyMl / 100).clamp(0.0, 1.0);
 
               return RepaintBoundary(
                 child: _LiquidGlassCard(
