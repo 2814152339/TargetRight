@@ -1,5 +1,6 @@
 import Flutter
 import UIKit
+import SwiftUI
 
 #if canImport(AlarmKit)
 import AlarmKit
@@ -162,17 +163,17 @@ extension AlarmKitBridge {
       let alarmID = UUID(uuidString: reminderIDs[payload.reminderKey] ?? "") ?? UUID()
       reminderIDs[payload.reminderKey] = alarmID.uuidString
 
-      try? await AlarmManager.shared.cancel(id: alarmID)
+      try? await AlarmManager.shared.stop(id: alarmID)
 
       let fireDate = nextOccurrence(for: payload)
       let schedule = Alarm.Schedule.fixed(fireDate)
       let stopButton = AlarmButton(
-        text: "Done",
-        textColor: .white,
+        text: LocalizedStringResource(stringLiteral: "Done"),
+        textColor: Color.white,
         systemImageName: "checkmark.circle.fill"
       )
       let alertPresentation = AlarmPresentation.Alert(
-        title: payload.displayTitle,
+        title: LocalizedStringResource(stringLiteral: payload.displayTitle),
         stopButton: stopButton
       )
       let attributes = AlarmAttributes<JinshiAlarmMetadata>(
@@ -185,7 +186,7 @@ extension AlarmKitBridge {
           hour: payload.hour,
           minute: payload.minute
         ),
-        tintColor: .blue
+        tintColor: Color.blue
       )
       let configuration = AlarmManager.AlarmConfiguration<JinshiAlarmMetadata>(
         countdownDuration: nil,
@@ -200,7 +201,7 @@ extension AlarmKitBridge {
 
     for (key, rawID) in reminderIDs where !activeKeys.contains(key) {
       if let alarmID = UUID(uuidString: rawID) {
-        try? await AlarmManager.shared.cancel(id: alarmID)
+        try? await AlarmManager.shared.stop(id: alarmID)
       }
       reminderIDs.removeValue(forKey: key)
     }
