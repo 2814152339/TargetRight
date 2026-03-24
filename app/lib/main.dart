@@ -295,10 +295,16 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       vsync: this,
       duration: const Duration(milliseconds: 2400),
     )..addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        _commitOrbUpload();
-      }
-    });
+        if (status == AnimationStatus.completed) {
+          if (_uploadRevealController.value > 0.0 ||
+              _uploadRevealController.isAnimating) {
+            _uploadRevealController.reverse(
+              from: _uploadRevealController.value,
+            );
+          }
+          _commitOrbUpload();
+        }
+      });
     _uploadRevealController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 200),
