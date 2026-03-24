@@ -1199,6 +1199,7 @@ class _SlideOutReplicaPanel extends StatefulWidget {
 }
 
 class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
+  static const String _reminderCardsStorageKey = 'reminder_cards_storage_v1';
   static const List<String> _defaultTitles = <String>[
     '\u6dfb\u52a0\u63d0\u9192',
     '\u8be5\u559d\u6c34\u5566',
@@ -1426,6 +1427,83 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
       _cards.length,
       null,
     );
+    _restoreReminderCards();
+  }
+
+  Future<void> _restoreReminderCards() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_reminderCardsStorageKey);
+    if (raw == null || raw.isEmpty) {
+      return;
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List<dynamic>) {
+        return;
+      }
+      for (final item in decoded) {
+        if (item is! Map<String, dynamic>) {
+          continue;
+        }
+        final index = item['index'];
+        if (index is! int || index < 0 || index >= _cards.length) {
+          continue;
+        }
+        _customReminderTitles[index] = item['title'] as String?;
+        _customReminderEmojis[index] = item['emoji'] as String?;
+        _customReminderDescriptions[index] = item['description'] as String?;
+        final hour = item['hour'];
+        final minute = item['minute'];
+        if (hour is int && minute is int) {
+          _customReminderTimes[index] = TimeOfDay(hour: hour, minute: minute);
+        }
+        final alertModeName = item['alertMode'];
+        if (alertModeName is String) {
+          for (final mode in _ReminderAlertMode.values) {
+            if (mode.name == alertModeName) {
+              _customReminderAlertModes[index] = mode;
+              break;
+            }
+          }
+        }
+      }
+      if (!mounted) {
+        return;
+      }
+      setState(() {});
+      widget.onReminderTasksChanged(_buildReminderTasks());
+    } catch (_) {
+      // Ignore invalid persisted payloads and keep the panel usable.
+    }
+  }
+
+  Future<void> _persistReminderCards() async {
+    final prefs = await SharedPreferences.getInstance();
+    final payload = <Map<String, dynamic>>[];
+    for (var i = 0; i < _cards.length; i++) {
+      final title = _customReminderTitles[i];
+      final time = _customReminderTimes[i];
+      final emoji = _customReminderEmojis[i];
+      final description = _customReminderDescriptions[i];
+      final alertMode = _customReminderAlertModes[i];
+      if (title == null &&
+          time == null &&
+          (emoji == null || emoji.isEmpty) &&
+          (description == null || description.isEmpty) &&
+          alertMode == null) {
+        continue;
+      }
+      payload.add(<String, dynamic>{
+        'index': i,
+        'title': title,
+        'emoji': emoji,
+        'description': description,
+        'hour': time?.hour,
+        'minute': time?.minute,
+        'alertMode': alertMode?.name,
+      });
+    }
+    await prefs.setString(_reminderCardsStorageKey, jsonEncode(payload));
   }
 
   void _snapToNearestSlot([double velocity = 0.0]) {
@@ -1766,6 +1844,7 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
       _customReminderTimes[targetIndex] = selectedTime;
       _customReminderAlertModes[targetIndex] = selectedAlertMode;
     });
+    await _persistReminderCards();
     widget.onReminderTasksChanged(_buildReminderTasks());
   }
 

@@ -141,6 +141,34 @@ struct CompleteReminderIntent: LiveActivityIntent {
     let defaults = UserDefaults.standard
     let current = defaults.double(forKey: pendingRewardMlKey)
     defaults.set(current + 10, forKey: pendingRewardMlKey)
+    if let id = UUID(uuidString: alarmID) {
+      try? await AlarmManager.shared.stop(id: id)
+    }
+    return .result()
+  }
+}
+
+@available(iOS 26.0, *)
+struct MissReminderIntent: LiveActivityIntent {
+  static var title: LocalizedStringResource = "Miss Reminder"
+  static var description = IntentDescription("Close the alarm without awarding ml.")
+  static var openAppWhenRun = false
+
+  @Parameter(title: "Alarm ID")
+  var alarmID: String
+
+  init(alarmID: String) {
+    self.alarmID = alarmID
+  }
+
+  init() {
+    self.alarmID = ""
+  }
+
+  func perform() async throws -> some IntentResult {
+    if let id = UUID(uuidString: alarmID) {
+      try? await AlarmManager.shared.stop(id: id)
+    }
     return .result()
   }
 }
@@ -168,13 +196,20 @@ extension AlarmKitBridge {
       let fireDate = nextOccurrence(for: payload)
       let schedule = Alarm.Schedule.fixed(fireDate)
       let stopButton = AlarmButton(
-        text: LocalizedStringResource(stringLiteral: "Done"),
+        text: LocalizedStringResource(stringLiteral: "完成"),
         textColor: Color.white,
         systemImageName: "checkmark.circle.fill"
       )
+      let secondaryButton = AlarmButton(
+        text: LocalizedStringResource(stringLiteral: "未完成"),
+        textColor: Color.white,
+        systemImageName: "xmark.circle.fill"
+      )
       let alertPresentation = AlarmPresentation.Alert(
         title: LocalizedStringResource(stringLiteral: payload.displayTitle),
-        stopButton: stopButton
+        stopButton: stopButton,
+        secondaryButton: secondaryButton,
+        secondaryButtonBehavior: .custom
       )
       let attributes = AlarmAttributes<JinshiAlarmMetadata>(
         presentation: AlarmPresentation(alert: alertPresentation),
@@ -193,7 +228,7 @@ extension AlarmKitBridge {
         schedule: schedule,
         attributes: attributes,
         stopIntent: CompleteReminderIntent(alarmID: alarmID.uuidString),
-        secondaryIntent: nil,
+        secondaryIntent: MissReminderIntent(alarmID: alarmID.uuidString),
         sound: .default
       )
       try await AlarmManager.shared.schedule(id: alarmID, configuration: configuration)
