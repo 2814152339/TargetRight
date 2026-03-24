@@ -2918,6 +2918,9 @@ class _OceanStatsPanel extends StatelessWidget {
   final double baikalEquivalent;
 
   String _formatCompact(double value) {
+    if (value.abs() < 0.1) {
+      return '0';
+    }
     return value.toStringAsFixed(value >= 100 ? 0 : 1);
   }
 
@@ -2957,6 +2960,8 @@ class _OceanStatsPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final media = MediaQuery.sizeOf(context);
     final reveal = Curves.easeOutCubic.transform(progress);
+    final innerTextReveal = ((reveal - 0.28) / 0.22).clamp(0.0, 1.0);
+    final outerTextReveal = ((reveal - 0.46) / 0.22).clamp(0.0, 1.0);
     final panelOffset = (1 - reveal) * media.width * 0.78;
     final seaStatsTop = media.height * 0.46;
 
@@ -3001,20 +3006,38 @@ class _OceanStatsPanel extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 10),
-                          Text(
-                            '你已经攒了${userMl.toStringAsFixed(0)} ml\n差不多是${_userReference(userMl)}。',
-                            style: TextStyle(
-                              fontSize: 16,
-                              height: 1.35,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white.withValues(alpha: 0.98),
-                              shadows: <Shadow>[
-                                Shadow(
-                                  color: Colors.black.withValues(alpha: 0.24),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
+                          Opacity(
+                            opacity: innerTextReveal,
+                            child: Transform.translate(
+                              offset: Offset(0, (1 - innerTextReveal) * 12),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    '你已经攒了${userMl.toStringAsFixed(0)} ml, 相当于${_userReference(userMl)}',
+                                    maxLines: 1,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      height: 1.35,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white.withValues(
+                                        alpha: 0.98,
+                                      ),
+                                      shadows: <Shadow>[
+                                        Shadow(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.24,
+                                          ),
+                                          blurRadius: 12,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
-                              ],
+                              ),
                             ),
                           ),
                         ],
@@ -3022,24 +3045,40 @@ class _OceanStatsPanel extends StatelessWidget {
                     ),
                   ),
                   Positioned(
-                    left: 28,
+                    left: 46,
                     right: 28,
                     top: seaStatsTop,
                     child: IgnorePointer(
-                      child: Text(
-                        '我们已经一起积攒了${totalMl.toStringAsFixed(0)}ml\n可以装满${_totalReference(totalMl)}啦。',
-                        style: TextStyle(
-                          fontSize: 16,
-                          height: 1.35,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white.withValues(alpha: 0.86),
-                          shadows: <Shadow>[
-                            Shadow(
-                              color: Colors.black.withValues(alpha: 0.28),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
+                      child: Opacity(
+                        opacity: outerTextReveal,
+                        child: Transform.translate(
+                          offset: Offset(0, (1 - outerTextReveal) * 12),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                '我们已经一起积攒了${totalMl.toStringAsFixed(0)}ml, 可以装满${_totalReference(totalMl)}啦',
+                                maxLines: 1,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  height: 1.35,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white.withValues(alpha: 0.86),
+                                  shadows: <Shadow>[
+                                    Shadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.28,
+                                      ),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
