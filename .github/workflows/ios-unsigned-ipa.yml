@@ -5,13 +5,16 @@ on:
   push:
     branches:
       - main
+      - alarmkit-rebuild
     paths:
       - "app/**"
       - ".github/workflows/ios-unsigned-ipa.yml"
 
 jobs:
   build-ios-ipa:
-    runs-on: macos-14
+    runs-on: macos-26
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     defaults:
       run:
         shell: bash
@@ -30,14 +33,34 @@ jobs:
       - name: Flutter Version
         run: flutter --version
 
+      - name: Xcode Version
+        run: |
+          xcode-select -p
+          xcodebuild -version
+
       - name: Install Dependencies
         run: flutter pub get
 
       - name: Run Unit Tests
         run: flutter test
 
+      - name: Prepare build log directory
+        run: mkdir -p ../artifacts
+
       - name: Build iOS app (no codesign)
-        run: flutter build ios --release --no-codesign
+        run: |
+          set -o pipefail
+          flutter build ios --release --no-codesign 2>&1 | tee ../artifacts/ios-build-log.txt
+
+      - name: Summarize build failure
+        if: failure()
+        run: |
+          {
+            echo "## iOS build failure tail"
+            echo '```'
+            tail -n 80 ../artifacts/ios-build-log.txt || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Pack unsigned ipa
         run: |
@@ -53,8 +76,15 @@ jobs:
       - name: Prepare artifact
         run: |
           set -euxo pipefail
-          mkdir -p ../artifacts
           cp build/ios/ipa/Runner-unsigned.ipa ../artifacts/Runner-unsigned.ipa
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-log
+          path: artifacts/ios-build-log.txt
+          if-no-files-found: error
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4

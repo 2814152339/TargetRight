@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -56,6 +57,18 @@ class _ReminderTaskConfig {
   final String description;
   final TimeOfDay time;
   final _ReminderAlertMode alertMode;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'index': index,
+      'title': title,
+      'emoji': emoji,
+      'description': description,
+      'hour': time.hour,
+      'minute': time.minute,
+      'alertMode': alertMode.name,
+    };
+  }
 }
 
 class _CloudStats {
@@ -212,11 +225,15 @@ class DynamicIslandDripPage extends StatefulWidget {
 }
 
 class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   static const double _defaultOrbFillBaseline = 0.015;
   static const double _panelRevealDistance = 84;
   static const double _rightPanelRevealDistance = 88;
   static const double _bottomSheetRevealDistance = 168;
+  static const String _orbStoredMlKey = 'orb_stored_ml';
+  static const MethodChannel _alarmKitChannel = MethodChannel(
+    'jinshi/alarmkit',
+  );
   late final AnimationController _controller;
   late final AnimationController _panelController;
   late final AnimationController _oceanPanelController;
@@ -257,6 +274,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _lastPhases = List<double>.filled(
       DynamicIslandDripPainter._drips.length,
       0,
@@ -294,9 +312,12 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
         }
       });
     _cloudStatsRepository = _LocalCloudStatsRepository();
-    _reminderScheduler = _InAppReminderScheduler(onTrigger: _handleReminderDue);
+    _reminderScheduler = _InAppReminderScheduler(
+      onTrigger: _handleReminderDueAlarmFlow,
+    );
     _startMotionTracking();
     _loadCloudStats();
+    _initializeOrbState();
     _controller =
         AnimationController(
             vsync: this,
@@ -350,6 +371,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _accelerometerSub?.cancel();
     _userAccelerometerSub?.cancel();
     _alarmEffectTimer?.cancel();
@@ -361,6 +383,13 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     _calendarSheetController.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _consumePendingNativeReward();
+    }
   }
 
   double get _displayOrbMl {
@@ -804,6 +833,50 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       _debugOrbForceFull = !_debugOrbForceFull;
       _orbStoredMl = _debugOrbForceFull ? 100 : 0;
     });
+    _saveOrbStoredMl();
+  }
+
+  Future<void> _loadOrbStoredMl() async {
+    final prefs = await SharedPreferences.getInstance();
+    final storedMl = prefs.getDouble(_orbStoredMlKey) ?? 0;
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _orbStoredMl = storedMl;
+    });
+  }
+
+  Future<void> _initializeOrbState() async {
+    await _loadOrbStoredMl();
+    await _consumePendingNativeReward();
+  }
+
+  Future<void> _saveOrbStoredMl() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_orbStoredMlKey, _orbStoredMl);
+  }
+
+  Future<void> _consumePendingNativeReward() async {
+    if (!Platform.isIOS) {
+      return;
+    }
+    try {
+      final result = await _alarmKitChannel.invokeMethod<num?>(
+        'consumePendingRewardMl',
+      );
+      final rewardMl = result?.toDouble() ?? 0;
+      if (rewardMl <= 0 || !mounted) {
+        return;
+      }
+      setState(() {
+        _orbStoredMl += rewardMl;
+        _debugOrbForceFull = false;
+      });
+      await _saveOrbStoredMl();
+    } on PlatformException {
+      // Keep the app usable even when the native bridge is unavailable.
+    }
   }
 
   Future<void> _loadCloudStats() async {
@@ -817,7 +890,24 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   }
 
   void _handleReminderTasksChanged(List<_ReminderTaskConfig> tasks) {
+    if (Platform.isIOS) {
+      _syncAlarmKitTasks(tasks);
+      return;
+    }
     _reminderScheduler.updateTasks(tasks);
+  }
+
+  Future<void> _syncAlarmKitTasks(List<_ReminderTaskConfig> tasks) async {
+    try {
+      await _alarmKitChannel.invokeMethod<void>(
+        'syncReminderAlarms',
+        <String, dynamic>{
+          'tasks': tasks.map((task) => task.toJson()).toList(growable: false),
+        },
+      );
+    } on PlatformException {
+      _reminderScheduler.updateTasks(tasks);
+    }
   }
 
   void _handleOrbUploadStart() {
@@ -860,6 +950,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       _debugOrbForceFull = false;
       _orbStoredMl = 0;
     });
+    await _saveOrbStoredMl();
     final stats = await _cloudStatsRepository.uploadContribution(uploadedMl);
     if (!mounted) {
       return;
@@ -869,6 +960,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     });
   }
 
+  // ignore: unused_element
   Future<void> _handleReminderDue(_ReminderTaskConfig task) async {
     if (!mounted || _alarmDialogVisible) {
       return;
@@ -903,6 +995,53 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     );
     _stopAlarmFeedback();
     _alarmDialogVisible = false;
+  }
+
+  Future<void> _handleReminderDueAlarmFlow(_ReminderTaskConfig task) async {
+    if (!mounted || _alarmDialogVisible) {
+      return;
+    }
+    _alarmDialogVisible = true;
+    _startAlarmFeedback(task.alertMode);
+    final completed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(task.title),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text('提醒时间：${task.time.format(context)}'),
+              if (task.description.isNotEmpty) ...<Widget>[
+                const SizedBox(height: 8),
+                Text(task.description),
+              ],
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('未完成'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('已完成'),
+            ),
+          ],
+        );
+      },
+    );
+    _stopAlarmFeedback();
+    _alarmDialogVisible = false;
+    if (completed == true && mounted) {
+      setState(() {
+        _orbStoredMl += 10;
+        _debugOrbForceFull = false;
+      });
+      await _saveOrbStoredMl();
+    }
   }
 
   void _startAlarmFeedback(_ReminderAlertMode mode) {
