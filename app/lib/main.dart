@@ -1137,13 +1137,15 @@ class _ProfileEntry extends StatelessWidget {
                   border: Border.all(color: Colors.black, width: 2),
                 ),
               ),
-              const SizedBox(width: 12),
-              Text(
-                '\u4f60\u597d,$displayName',
-                style: const TextStyle(
-                  fontSize: 18,
-                  color: Colors.black,
-                  fontWeight: FontWeight.w500,
+              Offstage(
+                offstage: true,
+                child: Text(
+                  '\u4f60\u597d,$displayName',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    color: Colors.black,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],
@@ -2294,7 +2296,7 @@ class ReplicaCard extends StatelessWidget {
     final slotInsetVertical = height * item.slotInsetVertical;
     final slotWidth = width * item.slotWidthFactor;
     final leftPadding = width * 0.045;
-    final bigNumberWidth = width * 0.145;
+    final bigNumberWidth = item.index >= 10 ? width * 0.22 : width * 0.145;
     final titleFont = height * 0.255;
     final numberFont = height * 0.46;
 
@@ -2379,16 +2381,22 @@ class ReplicaCard extends StatelessWidget {
                   children: <Widget>[
                     SizedBox(
                       width: bigNumberWidth,
-                      child: Transform.translate(
-                        offset: const Offset(-1.5, 1.0),
-                        child: Text(
-                          '${item.index}',
-                          style: TextStyle(
-                            fontSize: numberFont,
-                            height: 0.86,
-                            fontWeight: FontWeight.w900,
-                            color: const Color(0xFF111111),
-                            letterSpacing: -2.8,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Transform.translate(
+                          offset: const Offset(-1.5, 1.0),
+                          child: Text(
+                            '${item.index}',
+                            maxLines: 1,
+                            softWrap: false,
+                            style: TextStyle(
+                              fontSize: numberFont,
+                              height: 0.86,
+                              fontWeight: FontWeight.w900,
+                              color: const Color(0xFF111111),
+                              letterSpacing: -2.8,
+                            ),
                           ),
                         ),
                       ),
@@ -2909,6 +2917,42 @@ class _OceanStatsPanel extends StatelessWidget {
   final double userMl;
   final double baikalEquivalent;
 
+  String _formatCompact(double value) {
+    return value.toStringAsFixed(value >= 100 ? 0 : 1);
+  }
+
+  String _userReference(double ml) {
+    if (ml <= 0) {
+      return '0瓶农夫山泉';
+    }
+    if (ml < 100000) {
+      return '${_formatCompact(ml / 500)}瓶农夫山泉';
+    }
+    if (ml < 5000000) {
+      return '${_formatCompact(ml / 100000)}个鱼缸';
+    }
+    return '${_formatCompact(ml / 5000000)}个游泳池';
+  }
+
+  String _totalReference(double ml) {
+    const references = <(String, double)>[
+      ('大明湖', 1e12),
+      ('西湖', 1e13),
+      ('滇池', 1e15),
+      ('洞庭湖', 1e16),
+      ('青海湖', 1e17),
+      ('苏必利尔湖', 1e19),
+      ('贝加尔湖', 2e19),
+    ];
+    for (final (label, unitMl) in references) {
+      if (ml < unitMl * 10) {
+        return '${_formatCompact(ml / unitMl)}个$label';
+      }
+    }
+    final (label, unitMl) = references.last;
+    return '${_formatCompact(ml / unitMl)}个$label';
+  }
+
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.sizeOf(context);
@@ -2958,7 +3002,7 @@ class _OceanStatsPanel extends StatelessWidget {
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            '\u5df2\u6709${totalMl.toStringAsFixed(0)}ml\u6c47\u5165\u5927\u6d77\uff0c\u5176\u4e2d\u4f60\u79ef\u6512\u4e86${userMl.toStringAsFixed(0)}ml',
+                            '你已经攒了${userMl.toStringAsFixed(0)} ml\n差不多是${_userReference(userMl)}。',
                             style: TextStyle(
                               fontSize: 16,
                               height: 1.35,
@@ -2983,7 +3027,7 @@ class _OceanStatsPanel extends StatelessWidget {
                     top: seaStatsTop,
                     child: IgnorePointer(
                       child: Text(
-                        '\u5f53\u524d\u603b\u91cf\u76f8\u5f53\u4e8e${baikalEquivalent.toStringAsPrecision(1)}\u4e2a\u8d1d\u52a0\u5c14\u6e56',
+                        '我们已经一起积攒了${totalMl.toStringAsFixed(0)}ml\n可以装满${_totalReference(totalMl)}啦。',
                         style: TextStyle(
                           fontSize: 16,
                           height: 1.35,
