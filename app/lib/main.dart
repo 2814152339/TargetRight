@@ -259,6 +259,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   late final AnimationController _onboardingOverlayController;
   late final AnimationController _onboardingOrbTextController;
   late final AnimationController _onboardingRainFillController;
+  late final AnimationController _onboardingCardsRevealController;
   late final List<double> _lastPhases;
   StreamSubscription<AccelerometerEvent>? _accelerometerSub;
   StreamSubscription<UserAccelerometerEvent>? _userAccelerometerSub;
@@ -293,12 +294,14 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   _CloudStats _cloudStats = const _CloudStats();
   _OnboardingStage _onboardingStage = _OnboardingStage.hidden;
   String? _onboardingOverlayText;
+  String? _onboardingOverlaySecondaryText;
   String? _onboardingOrbText;
   bool _onboardingCardUnlocked = false;
   bool _onboardingOceanUnlocked = false;
   bool _onboardingCalendarUnlocked = false;
   double _onboardingRainStartMl = 0;
   bool _showOnboardingSource = false;
+  bool _showOnboardingCards = false;
   bool _onboardingCompleted = false;
   Completer<void>? _rightSwipeCompleter;
   Completer<void>? _cardTapCompleter;
@@ -356,6 +359,10 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
           _debugOrbForceFull = false;
         });
       });
+    _onboardingCardsRevealController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 820),
+    );
     _uploadProgressController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2400),
@@ -450,6 +457,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     _reminderScheduler.dispose();
     _uploadProgressController.dispose();
     _uploadRevealController.dispose();
+    _onboardingCardsRevealController.dispose();
     _onboardingRainFillController.dispose();
     _onboardingOrbTextController.dispose();
     _onboardingOverlayController.dispose();
@@ -482,8 +490,10 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
         _onboardingOceanUnlocked = true;
         _onboardingCalendarUnlocked = true;
         _showOnboardingSource = true;
+        _showOnboardingCards = true;
       });
       _onboardingOrbController.value = 1;
+      _onboardingCardsRevealController.value = 1;
       return;
     }
     setState(() {
@@ -493,9 +503,11 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       _onboardingOceanUnlocked = false;
       _onboardingCalendarUnlocked = false;
       _showOnboardingSource = false;
+      _showOnboardingCards = false;
       _orbStoredMl = 0;
       _debugOrbForceFull = false;
     });
+    _onboardingCardsRevealController.value = 0;
     await _saveOrbStoredMl();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -540,21 +552,31 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     }
     setState(() {
       _onboardingStage = _OnboardingStage.cardIntro;
+      _showOnboardingCards = false;
     });
-    await _showOverlayPrompt(
-      '生活太满，我们只取12个时刻',
-      hold: const Duration(milliseconds: 1600),
+    await _panelController.animateTo(
+      1.0,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
     );
+    await _showOverlayPrompt(
+      '生活太满',
+      secondaryText: '我们只取12个时刻',
+      hold: const Duration(milliseconds: 1750),
+    );
+    await _showOverlayPrompt(
+      '点击添加你的第一个时刻吧~',
+      hold: const Duration(milliseconds: 1300),
+    );
+    setState(() {
+      _showOnboardingCards = true;
+    });
+    await _onboardingCardsRevealController.forward(from: 0);
     _cardTapCompleter = Completer<void>();
     setState(() {
       _onboardingStage = _OnboardingStage.waitingCardTap;
     });
-    await _showOverlayPrompt(
-      '点击添加你的第一个时刻吧~',
-      persistUntilComplete: _cardTapCompleter,
-    );
     await _cardTapCompleter!.future;
-    await _fadeOutOverlayPrompt();
 
     if (!mounted) {
       return;
@@ -659,6 +681,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
 
   Future<void> _showOverlayPrompt(
     String text, {
+    String? secondaryText,
     Duration hold = const Duration(milliseconds: 1300),
     Completer<void>? persistUntilComplete,
     bool fadeOnSwipe = false,
@@ -668,6 +691,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     }
     setState(() {
       _onboardingOverlayText = text;
+      _onboardingOverlaySecondaryText = secondaryText;
     });
     await _onboardingOverlayController.forward(from: 0);
     if (persistUntilComplete != null) {
@@ -695,6 +719,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     }
     setState(() {
       _onboardingOverlayText = null;
+      _onboardingOverlaySecondaryText = null;
     });
   }
 
@@ -740,15 +765,18 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     if (!mounted) {
       return;
     }
+    _onboardingCardsRevealController.value = 1;
     setState(() {
       _onboardingCompleted = true;
       _onboardingStage = _OnboardingStage.completed;
       _onboardingOverlayText = null;
+      _onboardingOverlaySecondaryText = null;
       _onboardingOrbText = null;
       _onboardingCardUnlocked = true;
       _onboardingOceanUnlocked = true;
       _onboardingCalendarUnlocked = true;
       _showOnboardingSource = true;
+      _showOnboardingCards = true;
     });
   }
 
@@ -864,6 +892,10 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
                   children: <Widget>[
                     _SlideOutReplicaPanel(
                       progress: leftPanelProgress,
+                      cardsRevealProgress:
+                          !_isOnboardingActive || _showOnboardingCards
+                          ? _onboardingCardsRevealController.value
+                          : 0.0,
                       onReminderTasksChanged: _handleReminderTasksChanged,
                       onCardInteraction: _handleRootTap,
                     ),
@@ -988,6 +1020,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
                         child: IgnorePointer(
                           child: _OnboardingOverlay(
                             text: _onboardingOverlayText!,
+                            secondaryText: _onboardingOverlaySecondaryText,
                             progress: _onboardingOverlayController.value,
                             swipeProgress: _onboardingStage ==
                                     _OnboardingStage.waitingRightSwipe
@@ -1598,11 +1631,13 @@ class _OnboardingOrbText extends StatelessWidget {
 class _OnboardingOverlay extends StatelessWidget {
   const _OnboardingOverlay({
     required this.text,
+    this.secondaryText,
     required this.progress,
     required this.swipeProgress,
   });
 
   final String text;
+  final String? secondaryText;
   final double progress;
   final double swipeProgress;
 
@@ -1613,6 +1648,7 @@ class _OnboardingOverlay extends StatelessWidget {
       0.0,
       1.0,
     );
+    final secondaryReveal = ((progress - 0.36) / 0.54).clamp(0.0, 1.0);
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -1620,15 +1656,39 @@ class _OnboardingOverlay extends StatelessWidget {
           opacity: opacity,
           child: Transform.translate(
             offset: Offset(0, (1 - eased) * 18),
-            child: Text(
-              text,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.black.withValues(alpha: 0.74),
-                fontSize: 22,
-                height: 1.45,
-                fontWeight: FontWeight.w500,
-              ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  text,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.black.withValues(alpha: 0.74),
+                    fontSize: 22,
+                    height: 1.45,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                if (secondaryText != null) ...<Widget>[
+                  const SizedBox(height: 8),
+                  Opacity(
+                    opacity: secondaryReveal,
+                    child: Transform.translate(
+                      offset: Offset(0, (1 - secondaryReveal) * 12),
+                      child: Text(
+                        secondaryText!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.black.withValues(alpha: 0.74),
+                          fontSize: 22,
+                          height: 1.45,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ),
@@ -1640,11 +1700,13 @@ class _OnboardingOverlay extends StatelessWidget {
 class _SlideOutReplicaPanel extends StatefulWidget {
   const _SlideOutReplicaPanel({
     required this.progress,
+    required this.cardsRevealProgress,
     required this.onReminderTasksChanged,
     this.onCardInteraction,
   });
 
   final double progress;
+  final double cardsRevealProgress;
   final ValueChanged<List<_ReminderTaskConfig>> onReminderTasksChanged;
   final VoidCallback? onCardInteraction;
 
@@ -2354,6 +2416,9 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
     final reveal = math.max(0.001, widget.progress);
     final overlayOpacity = Curves.easeOutCubic.transform(widget.progress);
     final entryOffset = -42 * (1 - overlayOpacity);
+    final cardsReveal = Curves.easeOutCubic.transform(
+      widget.cardsRevealProgress.clamp(0.0, 1.0),
+    );
 
     return Positioned.fill(
       child: IgnorePointer(
@@ -2398,11 +2463,16 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                             return Stack(
                               children: <Widget>[
                                 Positioned(
-                                  left: media.width * 0.050,
+                                  left:
+                                      media.width * 0.050 -
+                                      (1 - cardsReveal) * 22,
                                   top: media.height * 0.30,
-                                  child: LeftSegmentIndicator(
-                                    progress: progress,
-                                    count: _cards.length,
+                                  child: Opacity(
+                                    opacity: cardsReveal,
+                                    child: LeftSegmentIndicator(
+                                      progress: progress,
+                                      count: _cards.length,
+                                    ),
                                   ),
                                 ),
                                 SingleChildScrollView(
@@ -2453,6 +2523,7 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                                             itemIndex: i,
                                             activeIndex: fractionalIndex,
                                             panelProgress: widget.progress,
+                                            cardsRevealProgress: cardsReveal,
                                             screenSize: media,
                                             displayTitle: _displayTitleFor(i),
                                             displayEmoji: _displayEmojiFor(i),
@@ -2589,6 +2660,7 @@ class FanReplicaCard extends StatelessWidget {
     required this.itemIndex,
     required this.activeIndex,
     required this.panelProgress,
+    required this.cardsRevealProgress,
     required this.screenSize,
     required this.displayTitle,
     required this.displayEmoji,
@@ -2602,6 +2674,7 @@ class FanReplicaCard extends StatelessWidget {
   final int itemIndex;
   final double activeIndex;
   final double panelProgress;
+  final double cardsRevealProgress;
   final Size screenSize;
   final String displayTitle;
   final String displayEmoji;
@@ -2613,7 +2686,9 @@ class FanReplicaCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settledIndex = itemIndex - activeIndex;
-    final entryShift = (1 - Curves.easeOutCubic.transform(panelProgress)) * 3.2;
+    final effectiveProgress =
+        Curves.easeOutCubic.transform(panelProgress) * cardsRevealProgress;
+    final entryShift = (1 - effectiveProgress) * 3.2;
     final trackIndex = settledIndex + entryShift;
     final lowerIndex = trackIndex.floor();
     final upperIndex = trackIndex.ceil();
