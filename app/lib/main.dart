@@ -41,6 +41,22 @@ enum _EdgeDragMode { none, leftPanel, rightPanel, bottomSheet }
 
 enum _ReminderAlertMode { systemAlarm, vibrationOnly }
 
+enum _OnboardingStage {
+  hidden,
+  orbAppearing,
+  waitingRightSwipe,
+  cardIntro,
+  waitingCardTap,
+  waitingFirstReminderSave,
+  waitingReturnHome,
+  homeRainFill,
+  waitingUploadComplete,
+  oceanIntro,
+  calendarIntro,
+  finalIntro,
+  completed,
+}
+
 class _ReminderTaskConfig {
   const _ReminderTaskConfig({
     required this.index,
@@ -231,6 +247,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   static const double _rightPanelRevealDistance = 88;
   static const double _bottomSheetRevealDistance = 168;
   static const String _orbStoredMlKey = 'orb_stored_ml';
+  static const String _onboardingCompletedKey = 'onboarding_completed_v1';
   static const MethodChannel _alarmKitChannel = MethodChannel(
     'jinshi/alarmkit',
   );
@@ -238,6 +255,10 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   late final AnimationController _panelController;
   late final AnimationController _oceanPanelController;
   late final AnimationController _calendarSheetController;
+  late final AnimationController _onboardingOrbController;
+  late final AnimationController _onboardingOverlayController;
+  late final AnimationController _onboardingOrbTextController;
+  late final AnimationController _onboardingRainFillController;
   late final List<double> _lastPhases;
   StreamSubscription<AccelerometerEvent>? _accelerometerSub;
   StreamSubscription<UserAccelerometerEvent>? _userAccelerometerSub;
@@ -270,6 +291,20 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   late final _CloudStatsRepository _cloudStatsRepository;
   late final _InAppReminderScheduler _reminderScheduler;
   _CloudStats _cloudStats = const _CloudStats();
+  _OnboardingStage _onboardingStage = _OnboardingStage.hidden;
+  String? _onboardingOverlayText;
+  String? _onboardingOrbText;
+  bool _onboardingCardUnlocked = false;
+  bool _onboardingOceanUnlocked = false;
+  bool _onboardingCalendarUnlocked = false;
+  double _onboardingRainStartMl = 0;
+  bool _showOnboardingSource = false;
+  bool _onboardingCompleted = false;
+  Completer<void>? _rightSwipeCompleter;
+  Completer<void>? _cardTapCompleter;
+  Completer<void>? _firstReminderCompleter;
+  Completer<void>? _returnHomeCompleter;
+  Completer<void>? _uploadCompleteCompleter;
 
   @override
   void initState() {
@@ -282,7 +317,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     _panelController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 260),
-    );
+    )..addListener(_handleOnboardingPanelControllerChanged);
     _oceanPanelController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -291,6 +326,36 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       vsync: this,
       duration: const Duration(milliseconds: 320),
     );
+    _onboardingOrbController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    );
+    _onboardingOverlayController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+      reverseDuration: const Duration(milliseconds: 700),
+    );
+    _onboardingOrbTextController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+      reverseDuration: const Duration(milliseconds: 700),
+    );
+    _onboardingRainFillController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..addListener(() {
+        if (!_isOnboardingActive) {
+          return;
+        }
+        setState(() {
+          _orbStoredMl = _lerpDouble(
+            _onboardingRainStartMl,
+            100,
+            Curves.easeInOut.transform(_onboardingRainFillController.value),
+          );
+          _debugOrbForceFull = false;
+        });
+      });
     _uploadProgressController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2400),
@@ -324,6 +389,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     _startMotionTracking();
     _loadCloudStats();
     _initializeOrbState();
+    _initializeOnboarding();
     _controller =
         AnimationController(
             vsync: this,
@@ -384,6 +450,10 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     _reminderScheduler.dispose();
     _uploadProgressController.dispose();
     _uploadRevealController.dispose();
+    _onboardingRainFillController.dispose();
+    _onboardingOrbTextController.dispose();
+    _onboardingOverlayController.dispose();
+    _onboardingOrbController.dispose();
     _panelController.dispose();
     _oceanPanelController.dispose();
     _calendarSheetController.dispose();
@@ -396,6 +466,290 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     if (state == AppLifecycleState.resumed) {
       _consumePendingNativeReward();
     }
+  }
+
+  Future<void> _initializeOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    final completed = prefs.getBool(_onboardingCompletedKey) ?? false;
+    if (!mounted) {
+      return;
+    }
+    if (completed) {
+      setState(() {
+        _onboardingCompleted = true;
+        _onboardingStage = _OnboardingStage.completed;
+        _onboardingCardUnlocked = true;
+        _onboardingOceanUnlocked = true;
+        _onboardingCalendarUnlocked = true;
+        _showOnboardingSource = true;
+      });
+      _onboardingOrbController.value = 1;
+      return;
+    }
+    setState(() {
+      _onboardingCompleted = false;
+      _onboardingStage = _OnboardingStage.hidden;
+      _onboardingCardUnlocked = false;
+      _onboardingOceanUnlocked = false;
+      _onboardingCalendarUnlocked = false;
+      _showOnboardingSource = false;
+      _orbStoredMl = 0;
+      _debugOrbForceFull = false;
+    });
+    await _saveOrbStoredMl();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _runOnboardingFlow();
+      }
+    });
+  }
+
+  Future<void> _runOnboardingFlow() async {
+    if (_onboardingCompleted) {
+      return;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 420));
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _onboardingStage = _OnboardingStage.orbAppearing;
+    });
+    await _onboardingOrbController.forward(from: 0);
+    await Future<void>.delayed(const Duration(milliseconds: 280));
+    await _showOrbOnboardingText('12:05', hold: const Duration(milliseconds: 1300));
+    await _showOrbOnboardingText(
+      '"它现在是空的"',
+      hold: const Duration(milliseconds: 1500),
+    );
+
+    setState(() {
+      _onboardingStage = _OnboardingStage.waitingRightSwipe;
+      _onboardingCardUnlocked = true;
+    });
+    _rightSwipeCompleter = Completer<void>();
+    await _showOverlayPrompt(
+      '现在，向右滑探索未来',
+      persistUntilComplete: _rightSwipeCompleter,
+      fadeOnSwipe: true,
+    );
+    await _rightSwipeCompleter!.future;
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _onboardingStage = _OnboardingStage.cardIntro;
+    });
+    await _showOverlayPrompt(
+      '生活太满，我们只取12个时刻',
+      hold: const Duration(milliseconds: 1600),
+    );
+    _cardTapCompleter = Completer<void>();
+    setState(() {
+      _onboardingStage = _OnboardingStage.waitingCardTap;
+    });
+    await _showOverlayPrompt(
+      '点击添加你的第一个时刻吧~',
+      persistUntilComplete: _cardTapCompleter,
+    );
+    await _cardTapCompleter!.future;
+    await _fadeOutOverlayPrompt();
+
+    if (!mounted) {
+      return;
+    }
+    _firstReminderCompleter = Completer<void>();
+    setState(() {
+      _onboardingStage = _OnboardingStage.waitingFirstReminderSave;
+    });
+    await _firstReminderCompleter!.future;
+
+    await _showOverlayPrompt(
+      '每完成一次，就会为你下一场雨',
+      hold: const Duration(milliseconds: 1600),
+    );
+    _returnHomeCompleter = Completer<void>();
+    setState(() {
+      _onboardingStage = _OnboardingStage.waitingReturnHome;
+    });
+    await _showOverlayPrompt(
+      '让我们回到首页',
+      persistUntilComplete: _returnHomeCompleter,
+    );
+    await _returnHomeCompleter!.future;
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _onboardingStage = _OnboardingStage.homeRainFill;
+      _showOnboardingSource = true;
+      _onboardingRainStartMl = _orbStoredMl;
+    });
+    await _onboardingRainFillController.forward(from: 0);
+    setState(() {
+      _orbStoredMl = 100;
+    });
+    await _saveOrbStoredMl();
+
+    await _showOverlayPrompt(
+      '5次即可长按球体，让你的雨，汇入远方的海',
+      hold: const Duration(milliseconds: 2000),
+    );
+
+    _uploadCompleteCompleter = Completer<void>();
+    setState(() {
+      _onboardingStage = _OnboardingStage.waitingUploadComplete;
+    });
+    await _uploadCompleteCompleter!.future;
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _onboardingOceanUnlocked = true;
+      _onboardingCalendarUnlocked = true;
+      _onboardingStage = _OnboardingStage.oceanIntro;
+    });
+    await _showOverlayPrompt(
+      '向左滑，进入远方的海',
+      hold: const Duration(milliseconds: 1500),
+    );
+    setState(() {
+      _onboardingStage = _OnboardingStage.calendarIntro;
+    });
+    await _showOverlayPrompt(
+      '向上滑，进入历程',
+      hold: const Duration(milliseconds: 1500),
+    );
+    setState(() {
+      _onboardingStage = _OnboardingStage.finalIntro;
+    });
+    await _showOverlayPrompt(
+      '12:05，现在收集你的第一个时刻',
+      hold: const Duration(milliseconds: 1800),
+    );
+    await _completeOnboarding();
+  }
+
+  Future<void> _showOrbOnboardingText(
+    String text, {
+    Duration hold = const Duration(milliseconds: 1200),
+  }) async {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _onboardingOrbText = text;
+    });
+    await _onboardingOrbTextController.forward(from: 0);
+    await Future<void>.delayed(hold);
+    if (!mounted) {
+      return;
+    }
+    await _onboardingOrbTextController.reverse();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _onboardingOrbText = null;
+    });
+  }
+
+  Future<void> _showOverlayPrompt(
+    String text, {
+    Duration hold = const Duration(milliseconds: 1300),
+    Completer<void>? persistUntilComplete,
+    bool fadeOnSwipe = false,
+  }) async {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _onboardingOverlayText = text;
+    });
+    await _onboardingOverlayController.forward(from: 0);
+    if (persistUntilComplete != null) {
+      await persistUntilComplete.future;
+      return;
+    }
+    await Future<void>.delayed(hold);
+    if (!mounted) {
+      return;
+    }
+    if (!fadeOnSwipe) {
+      await _fadeOutOverlayPrompt();
+    }
+  }
+
+  Future<void> _fadeOutOverlayPrompt() async {
+    if (_onboardingOverlayText == null) {
+      return;
+    }
+    await _onboardingOverlayController.reverse(
+      from: _onboardingOverlayController.value,
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _onboardingOverlayText = null;
+    });
+  }
+
+  void _handleOnboardingPanelControllerChanged() {
+    if (!_isOnboardingActive) {
+      return;
+    }
+    if (_onboardingStage == _OnboardingStage.waitingRightSwipe) {
+      if (_panelController.value > 0.04 &&
+          _onboardingOverlayText != null &&
+          _onboardingOverlayController.status != AnimationStatus.reverse &&
+          _onboardingOverlayController.value > 0.0) {
+        unawaited(_fadeOutOverlayPrompt());
+      }
+      if (_panelController.value >= 0.68 &&
+          _rightSwipeCompleter != null &&
+          !_rightSwipeCompleter!.isCompleted) {
+        _rightSwipeCompleter!.complete();
+      }
+    }
+    if (_onboardingStage == _OnboardingStage.waitingReturnHome &&
+        _panelController.value <= 0.02 &&
+        _returnHomeCompleter != null &&
+        !_returnHomeCompleter!.isCompleted) {
+      _returnHomeCompleter!.complete();
+    }
+  }
+
+  void _handleRootTap() {
+    if (!_isOnboardingActive) {
+      return;
+    }
+    if (_onboardingStage == _OnboardingStage.waitingCardTap &&
+        _cardTapCompleter != null &&
+        !_cardTapCompleter!.isCompleted) {
+      _cardTapCompleter!.complete();
+    }
+  }
+
+  Future<void> _completeOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_onboardingCompletedKey, true);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _onboardingCompleted = true;
+      _onboardingStage = _OnboardingStage.completed;
+      _onboardingOverlayText = null;
+      _onboardingOrbText = null;
+      _onboardingCardUnlocked = true;
+      _onboardingOceanUnlocked = true;
+      _onboardingCalendarUnlocked = true;
+      _showOnboardingSource = true;
+    });
   }
 
   double get _displayOrbMl {
@@ -414,6 +768,18 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   double get _orbFillTarget =>
       math.max(math.min(_displayOrbMl, 100) / 100, _defaultOrbFillBaseline);
 
+  bool get _isOnboardingActive => !_onboardingCompleted;
+
+  bool get _canOpenCardPanel => !_isOnboardingActive || _onboardingCardUnlocked;
+
+  bool get _canOpenOceanPanel =>
+      !_isOnboardingActive || _onboardingOceanUnlocked;
+
+  bool get _canOpenCalendarSheet =>
+      !_isOnboardingActive || _onboardingCalendarUnlocked;
+
+  bool get _showProfileEntry => !_isOnboardingActive;
+
   double get _userCollectedMl => _cloudStats.userMl;
 
   double get _totalOceanMl => _cloudStats.totalMl;
@@ -431,6 +797,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       backgroundColor: bgColor,
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
+        onTapUp: (_) => _handleRootTap(),
         onHorizontalDragStart: _handlePanelDragStart,
         onHorizontalDragUpdate: _handlePanelDragUpdate,
         onHorizontalDragEnd: _handlePanelDragEnd,
@@ -477,7 +844,12 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
                 _uploadRevealController.value > 0.01 ||
                 _uploadRevealController.isAnimating;
             final canStartOrbUpload =
-                sceneCover <= 0.02 && _canUploadOrb && !uploadOverlayActive;
+                sceneCover <= 0.02 &&
+                _canUploadOrb &&
+                !uploadOverlayActive &&
+                (!_isOnboardingActive ||
+                    _onboardingStage == _OnboardingStage.waitingUploadComplete ||
+                    _onboardingStage == _OnboardingStage.completed);
             final canFinishOrbUpload =
                 sceneCover <= 0.02 && uploadOverlayActive;
 
@@ -493,6 +865,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
                     _SlideOutReplicaPanel(
                       progress: leftPanelProgress,
                       onReminderTasksChanged: _handleReminderTasksChanged,
+                      onCardInteraction: _handleRootTap,
                     ),
                     _OceanStatsPanel(
                       progress: rightPanelProgress,
@@ -543,6 +916,10 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
                                         _uploadProgressController.value,
                                     uploadReveal:
                                         _uploadRevealController.value,
+                                    showSourceObjects:
+                                        !_isOnboardingActive ||
+                                        _showOnboardingSource,
+                                    showOrbLabel: !_isOnboardingActive,
                                   ),
                                   child: const SizedBox.expand(),
                                 ),
@@ -567,38 +944,58 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
                                         : _handleOrbUploadCancel,
                                   ),
                                 ),
-                                Positioned(
-                                  left: 16,
-                                  top: safeTop + 18,
-                                  child: _ProfileEntry(
-                                    nickname: '\u7528\u6237\u6635\u79f0',
-                                    onTap: () {
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute<void>(
-                                          builder: (context) =>
-                                              const ProfilePlaceholderPage(),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                                Positioned(
-                                  left: 0,
-                                  right: 0,
-                                  bottom: 28,
-                                  child: Center(
-                                    child: _DebugOrbToggleButton(
-                                      filled: _debugOrbForceFull,
-                                      onPressed: _toggleDebugOrbFill,
+                                if (_showProfileEntry)
+                                  Positioned(
+                                    left: 16,
+                                    top: safeTop + 18,
+                                    child: _ProfileEntry(
+                                      nickname: '\u7528\u6237\u6635\u79f0',
+                                      onTap: () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute<void>(
+                                            builder: (context) =>
+                                                const ProfilePlaceholderPage(),
+                                          ),
+                                        );
+                                      },
                                     ),
                                   ),
-                                ),
+                                if (_isOnboardingActive)
+                                  Positioned(
+                                    left: orbCenter.dx - orbRadius * 1.28,
+                                    top: orbCenter.dy - orbRadius * 1.28,
+                                    width: orbRadius * 2.56,
+                                    height: orbRadius * 2.56,
+                                    child: IgnorePointer(
+                                      child: Opacity(
+                                        opacity: _onboardingOrbController.value,
+                                        child: _OnboardingOrbText(
+                                          text: _onboardingOrbText,
+                                          progress:
+                                              _onboardingOrbTextController.value,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
                         ),
                       ),
                     ),
+                    if (_onboardingOverlayText != null)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: _OnboardingOverlay(
+                            text: _onboardingOverlayText!,
+                            progress: _onboardingOverlayController.value,
+                            swipeProgress: _onboardingStage ==
+                                    _OnboardingStage.waitingRightSwipe
+                                ? leftPanelProgress
+                                : 0.0,
+                          ),
+                        ),
+                      ),
                   ],
                 );
               },
@@ -715,7 +1112,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       return;
     }
     _activeDragMode = _EdgeDragMode.none;
-    _gestureArmedFromOrb = true;
+    _gestureArmedFromOrb = _canOpenCardPanel || _canOpenOceanPanel;
     _panelDragStartX = details.globalPosition.dx;
     _panelDragStartValue = _panelController.value;
     _oceanDragStartX = details.globalPosition.dx;
@@ -726,9 +1123,13 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     if (_gestureArmedFromOrb && _activeDragMode == _EdgeDragMode.none) {
       final deltaX = details.globalPosition.dx - _panelDragStartX;
       if (deltaX.abs() >= 10) {
-        _activeDragMode = deltaX > 0
-            ? _EdgeDragMode.leftPanel
-            : _EdgeDragMode.rightPanel;
+        if (deltaX > 0 && _canOpenCardPanel) {
+          _activeDragMode = _EdgeDragMode.leftPanel;
+        } else if (deltaX < 0 && _canOpenOceanPanel) {
+          _activeDragMode = _EdgeDragMode.rightPanel;
+        } else {
+          return;
+        }
         _gestureArmedFromOrb = false;
       }
     }
@@ -794,6 +1195,10 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     if (_panelController.value > 0.02 || _oceanPanelController.value > 0.02) {
       return;
     }
+    if (!canResumeCalendar && !_canOpenCalendarSheet) {
+      _activeDragMode = _EdgeDragMode.none;
+      return;
+    }
     _activeDragMode = _EdgeDragMode.bottomSheet;
     _gestureArmedFromOrb = false;
     _calendarDragStartY = details.globalPosition.dy;
@@ -832,14 +1237,6 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     );
     _activeDragMode = _EdgeDragMode.none;
     _gestureArmedFromOrb = false;
-  }
-
-  void _toggleDebugOrbFill() {
-    setState(() {
-      _debugOrbForceFull = !_debugOrbForceFull;
-      _orbStoredMl = _debugOrbForceFull ? 100 : 0;
-    });
-    _saveOrbStoredMl();
   }
 
   Future<void> _loadOrbStoredMl() async {
@@ -896,6 +1293,13 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   }
 
   void _handleReminderTasksChanged(List<_ReminderTaskConfig> tasks) {
+    if (_isOnboardingActive &&
+        _onboardingStage == _OnboardingStage.waitingFirstReminderSave &&
+        tasks.isNotEmpty &&
+        _firstReminderCompleter != null &&
+        !_firstReminderCompleter!.isCompleted) {
+      _firstReminderCompleter!.complete();
+    }
     if (Platform.isIOS) {
       _syncAlarmKitTasks(tasks);
       return;
@@ -964,6 +1368,12 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     setState(() {
       _cloudStats = stats;
     });
+    if (_isOnboardingActive &&
+        _onboardingStage == _OnboardingStage.waitingUploadComplete &&
+        _uploadCompleteCompleter != null &&
+        !_uploadCompleteCompleter!.isCompleted) {
+      _uploadCompleteCompleter!.complete();
+    }
   }
 
   // ignore: unused_element
@@ -1075,47 +1485,6 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   static double _lerpDouble(double a, double b, double t) => a + (b - a) * t;
 }
 
-class _DebugOrbToggleButton extends StatelessWidget {
-  const _DebugOrbToggleButton({required this.filled, required this.onPressed});
-
-  final bool filled;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(999),
-        child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.78),
-            borderRadius: BorderRadius.circular(999),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.10),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Text(
-            filled ? '恢复初始液位' : '切换到满液位',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _ProfileEntry extends StatelessWidget {
   const _ProfileEntry({required this.nickname, required this.onTap});
   final String nickname;
@@ -1193,14 +1562,91 @@ class ProfilePlaceholderPage extends StatelessWidget {
   }
 }
 
+class _OnboardingOrbText extends StatelessWidget {
+  const _OnboardingOrbText({required this.text, required this.progress});
+
+  final String? text;
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    if (text == null || progress <= 0.0) {
+      return const SizedBox.shrink();
+    }
+    final eased = Curves.easeOutCubic.transform(progress.clamp(0.0, 1.0));
+    return Center(
+      child: Opacity(
+        opacity: eased,
+        child: Transform.translate(
+          offset: Offset(0, (1 - eased) * 10),
+          child: Text(
+            text!,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.black.withValues(alpha: 0.82),
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OnboardingOverlay extends StatelessWidget {
+  const _OnboardingOverlay({
+    required this.text,
+    required this.progress,
+    required this.swipeProgress,
+  });
+
+  final String text;
+  final double progress;
+  final double swipeProgress;
+
+  @override
+  Widget build(BuildContext context) {
+    final eased = Curves.easeOutCubic.transform(progress.clamp(0.0, 1.0));
+    final opacity = (eased * (1 - swipeProgress.clamp(0.0, 1.0))).clamp(
+      0.0,
+      1.0,
+    );
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Opacity(
+          opacity: opacity,
+          child: Transform.translate(
+            offset: Offset(0, (1 - eased) * 18),
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.black.withValues(alpha: 0.74),
+                fontSize: 22,
+                height: 1.45,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SlideOutReplicaPanel extends StatefulWidget {
   const _SlideOutReplicaPanel({
     required this.progress,
     required this.onReminderTasksChanged,
+    this.onCardInteraction,
   });
 
   final double progress;
   final ValueChanged<List<_ReminderTaskConfig>> onReminderTasksChanged;
+  final VoidCallback? onCardInteraction;
 
   @override
   State<_SlideOutReplicaPanel> createState() => _SlideOutReplicaPanelState();
@@ -1691,6 +2137,7 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
       index < 4 || _customReminderTitles[index] != null;
 
   Future<void> _openReminderDialogForCard(int tappedIndex) async {
+    widget.onCardInteraction?.call();
     final isEditing = _customReminderTitles[tappedIndex] != null;
     final targetIndex = isEditing ? tappedIndex : _firstEmptyReminderIndex;
     if (targetIndex == -1) {
@@ -3561,6 +4008,8 @@ class DynamicIslandDripPainter extends CustomPainter {
     required this.orbMl,
     required this.uploadProgress,
     required this.uploadReveal,
+    required this.showSourceObjects,
+    required this.showOrbLabel,
   });
 
   final double t;
@@ -3575,6 +4024,8 @@ class DynamicIslandDripPainter extends CustomPainter {
   final double orbMl;
   final double uploadProgress;
   final double uploadReveal;
+  final bool showSourceObjects;
+  final bool showOrbLabel;
 
   static const Color _orbBlueTop = Color(0xFF8CCCFF);
   static const Color _orbBlueBottom = Color(0xFF4A93FF);
@@ -3661,25 +4112,27 @@ class DynamicIslandDripPainter extends CustomPainter {
         ? math.max(24.0, safeTop - 8.0)
         : islandTop + islandHeight;
 
-    if (hasDynamicIslandInset) {
-      _drawSourceLip(
-        canvas,
-        centerX: centerX,
-        width: sourceWidth,
-        top: islandTop,
-        bottom: sourceBottom,
-        fillPaint: fillPaint,
-      );
-    } else {
-      _drawFallbackIsland(
-        canvas,
-        centerX: centerX,
-        width: sourceWidth,
-        top: islandTop,
-        height: islandHeight,
-        fillPaint: fillPaint,
-        shadowPaint: shadowPaint,
-      );
+    if (showSourceObjects) {
+      if (hasDynamicIslandInset) {
+        _drawSourceLip(
+          canvas,
+          centerX: centerX,
+          width: sourceWidth,
+          top: islandTop,
+          bottom: sourceBottom,
+          fillPaint: fillPaint,
+        );
+      } else {
+        _drawFallbackIsland(
+          canvas,
+          centerX: centerX,
+          width: sourceWidth,
+          top: islandTop,
+          height: islandHeight,
+          fillPaint: fillPaint,
+          shadowPaint: shadowPaint,
+        );
+      }
     }
 
     _drawOrbBack(
@@ -3689,19 +4142,21 @@ class DynamicIslandDripPainter extends CustomPainter {
       shadowPaint: shadowPaint,
     );
 
-    for (var i = 0; i < _drips.length; i++) {
-      _drawDrip(
-        canvas,
-        index: i,
-        centerX: centerX,
-        sourceWidth: sourceWidth,
-        baseY: sourceBottom + 0.8,
-        orbCenter: orbCenter,
-        orbRadius: orbRadius,
-        spec: _drips[i],
-        fillPaint: fillPaint,
-        shadowPaint: shadowPaint,
-      );
+    if (showSourceObjects) {
+      for (var i = 0; i < _drips.length; i++) {
+        _drawDrip(
+          canvas,
+          index: i,
+          centerX: centerX,
+          sourceWidth: sourceWidth,
+          baseY: sourceBottom + 0.8,
+          orbCenter: orbCenter,
+          orbRadius: orbRadius,
+          spec: _drips[i],
+          fillPaint: fillPaint,
+          shadowPaint: shadowPaint,
+        );
+      }
     }
 
     _drawOrbFront(canvas, center: orbCenter, radius: orbRadius);
@@ -4332,7 +4787,9 @@ class DynamicIslandDripPainter extends CustomPainter {
     );
 
     _drawUploadOverlay(canvas, center: center, radius: radius);
-    _drawOrbLabel(canvas, center: center, radius: radius);
+    if (showOrbLabel) {
+      _drawOrbLabel(canvas, center: center, radius: radius);
+    }
   }
 
   void _drawOrbLabel(
@@ -4900,7 +5357,9 @@ class DynamicIslandDripPainter extends CustomPainter {
         oldDelegate.color != color ||
         oldDelegate.orbMl != orbMl ||
         oldDelegate.uploadProgress != uploadProgress ||
-        oldDelegate.uploadReveal != uploadReveal;
+        oldDelegate.uploadReveal != uploadReveal ||
+        oldDelegate.showSourceObjects != showSourceObjects ||
+        oldDelegate.showOrbLabel != showOrbLabel;
   }
 }
 
