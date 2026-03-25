@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -2930,20 +2930,48 @@ class _OceanStatsPanel extends StatelessWidget {
     return value.toStringAsFixed(value >= 100 ? 0 : 1);
   }
 
-  String _userReference(double ml) {
-    if (ml <= 0) {
-      return '0瓶农夫山泉';
+  String _buildUserSummary(double ml) {
+    final reference = _userReference(ml);
+    if (reference == null) {
+      return '你已经攒了${ml.toStringAsFixed(0)} ml';
     }
-    if (ml < 100000) {
-      return '${_formatCompact(ml / 500)}瓶农夫山泉';
-    }
-    if (ml < 5000000) {
-      return '${_formatCompact(ml / 100000)}个鱼缸';
-    }
-    return '${_formatCompact(ml / 5000000)}个游泳池';
+    return '你已经攒了${ml.toStringAsFixed(0)} ml, 相当于$reference';
   }
 
-  String _totalReference(double ml) {
+  String _buildTotalSummary(double ml) {
+    final reference = _totalReference(ml);
+    if (reference == null) {
+      return '我们已经一起积攒了${ml.toStringAsFixed(0)}ml';
+    }
+    return '我们已经一起积攒了${ml.toStringAsFixed(0)}ml, 可以装满$reference啦';
+  }
+
+  String? _userReference(double ml) {
+    if (ml <= 0) {
+      return null;
+    }
+    if (ml < 100000) {
+      final value = ml / 500;
+      if (value < 0.1) {
+        return null;
+      }
+      return '${_formatCompact(value)}瓶农夫山泉';
+    }
+    if (ml < 5000000) {
+      final value = ml / 100000;
+      if (value < 0.1) {
+        return null;
+      }
+      return '${_formatCompact(value)}个鱼缸';
+    }
+    final value = ml / 5000000;
+    if (value < 0.1) {
+      return null;
+    }
+    return '${_formatCompact(value)}个游泳池';
+  }
+
+  String? _totalReference(double ml) {
     const references = <(String, double)>[
       ('大明湖', 1e12),
       ('西湖', 1e13),
@@ -2953,21 +2981,32 @@ class _OceanStatsPanel extends StatelessWidget {
       ('苏必利尔湖', 1e19),
       ('贝加尔湖', 2e19),
     ];
+    if (ml <= 0) {
+      return null;
+    }
     for (final (label, unitMl) in references) {
       if (ml < unitMl * 10) {
-        return '${_formatCompact(ml / unitMl)}个$label';
+        final value = ml / unitMl;
+        if (value < 0.1) {
+          return null;
+        }
+        return '${_formatCompact(value)}个$label';
       }
     }
     final (label, unitMl) = references.last;
-    return '${_formatCompact(ml / unitMl)}个$label';
+    final value = ml / unitMl;
+    if (value < 0.1) {
+      return null;
+    }
+    return '${_formatCompact(value)}个$label';
   }
 
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.sizeOf(context);
     final reveal = Curves.easeOutCubic.transform(progress);
-    final innerTextReveal = ((reveal - 0.28) / 0.22).clamp(0.0, 1.0);
-    final outerTextReveal = ((reveal - 0.46) / 0.22).clamp(0.0, 1.0);
+    final innerTextReveal = ((reveal - 0.88) / 0.12).clamp(0.0, 1.0);
+    final outerTextReveal = ((reveal - 0.96) / 0.04).clamp(0.0, 1.0);
     final panelOffset = (1 - reveal) * media.width * 0.78;
     final seaStatsTop = media.height * 0.46;
 
@@ -3015,14 +3054,14 @@ class _OceanStatsPanel extends StatelessWidget {
                           Opacity(
                             opacity: innerTextReveal,
                             child: Transform.translate(
-                              offset: Offset(0, (1 - innerTextReveal) * 12),
+                              offset: Offset(0, (1 - innerTextReveal) * 22),
                               child: Align(
                                 alignment: Alignment.centerLeft,
                                 child: FittedBox(
                                   fit: BoxFit.scaleDown,
                                   alignment: Alignment.centerLeft,
                                   child: Text(
-                                    '你已经攒了${userMl.toStringAsFixed(0)} ml, 相当于${_userReference(userMl)}',
+                                    _buildUserSummary(userMl),
                                     maxLines: 1,
                                     style: TextStyle(
                                       fontSize: 16,
@@ -3058,14 +3097,14 @@ class _OceanStatsPanel extends StatelessWidget {
                       child: Opacity(
                         opacity: outerTextReveal,
                         child: Transform.translate(
-                          offset: Offset(0, (1 - outerTextReveal) * 12),
+                          offset: Offset(0, (1 - outerTextReveal) * 22),
                           child: Align(
                             alignment: Alignment.centerLeft,
                             child: FittedBox(
                               fit: BoxFit.scaleDown,
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                '我们已经一起积攒了${totalMl.toStringAsFixed(0)}ml, 可以装满${_totalReference(totalMl)}啦',
+                                _buildTotalSummary(totalMl),
                                 maxLines: 1,
                                 style: TextStyle(
                                   fontSize: 16,
