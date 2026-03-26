@@ -296,6 +296,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   _OnboardingStage _onboardingStage = _OnboardingStage.hidden;
   String? _onboardingOverlayText;
   String? _onboardingOverlaySecondaryText;
+  double _onboardingOverlayVerticalOffset = 0;
   String? _cardIntroOverlayText;
   String? _cardIntroOverlaySecondaryText;
   String? _onboardingOrbText;
@@ -603,10 +604,6 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     }
     await _firstReminderCompleter!.future;
 
-    await _showOverlayPrompt(
-      '每完成一次,就会为你下一场雨',
-      hold: const Duration(milliseconds: 1600),
-    );
     _returnHomeCompleter = Completer<void>();
     setState(() {
       _onboardingStage = _OnboardingStage.waitingReturnHome;
@@ -614,12 +611,19 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     await _showOverlayPrompt(
       '让我们回到首页',
       persistUntilComplete: _returnHomeCompleter,
+      verticalOffset: -120,
     );
     await _returnHomeCompleter!.future;
 
     if (!mounted) {
       return;
     }
+    await _showOverlayPrompt(
+      '每完成一次',
+      secondaryText: '就会为你下一场雨',
+      hold: const Duration(milliseconds: 1600),
+      secondaryDelay: const Duration(milliseconds: 520),
+    );
     setState(() {
       _onboardingStage = _OnboardingStage.homeRainFill;
       _showOnboardingSource = true;
@@ -632,8 +636,15 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     await _saveOrbStoredMl();
 
     await _showOverlayPrompt(
-      '5次即可长按球体,让你的雨,汇入远方的海',
-      hold: const Duration(milliseconds: 2000),
+      '5次即可注满雨水',
+      hold: const Duration(milliseconds: 1500),
+    );
+
+    await _showOverlayPrompt(
+      '长按球体',
+      secondaryText: '让你的雨,汇入远方的海',
+      hold: const Duration(milliseconds: 1700),
+      secondaryDelay: const Duration(milliseconds: 520),
     );
 
     _uploadCompleteCompleter = Completer<void>();
@@ -646,27 +657,35 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       return;
     }
     setState(() {
-      _onboardingOceanUnlocked = true;
-      _onboardingCalendarUnlocked = true;
       _onboardingStage = _OnboardingStage.oceanIntro;
     });
     await _showOverlayPrompt(
       '向左滑,进入远方的海',
       hold: const Duration(milliseconds: 1500),
     );
+    if (!mounted) {
+      return;
+    }
     setState(() {
+      _onboardingOceanUnlocked = true;
       _onboardingStage = _OnboardingStage.calendarIntro;
     });
     await _showOverlayPrompt(
       '向上滑,进入历程',
       hold: const Duration(milliseconds: 1500),
     );
+    if (!mounted) {
+      return;
+    }
     setState(() {
+      _onboardingCalendarUnlocked = true;
       _onboardingStage = _OnboardingStage.finalIntro;
     });
     await _showOverlayPrompt(
-      '12:05,现在收集你的第一个时刻',
+      '12:05',
+      secondaryText: '现在开始收集你的第一个时刻',
       hold: const Duration(milliseconds: 1800),
+      secondaryDelay: const Duration(milliseconds: 520),
     );
     await _completeOnboarding();
   }
@@ -702,6 +721,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     Duration secondaryDelay = const Duration(milliseconds: 420),
     Completer<void>? persistUntilComplete,
     bool fadeOnSwipe = false,
+    double verticalOffset = 0,
   }) async {
     if (!mounted) {
       return;
@@ -710,6 +730,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     setState(() {
       _onboardingOverlayText = text;
       _onboardingOverlaySecondaryText = null;
+      _onboardingOverlayVerticalOffset = verticalOffset;
     });
     await _onboardingOverlayController.forward(from: 0);
     if (secondaryText != null) {
@@ -753,6 +774,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     setState(() {
       _onboardingOverlayText = null;
       _onboardingOverlaySecondaryText = null;
+      _onboardingOverlayVerticalOffset = 0;
     });
   }
 
@@ -1116,6 +1138,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
                                     _OnboardingStage.waitingRightSwipe
                                 ? leftPanelProgress
                                 : 0.0,
+                            verticalOffset: _onboardingOverlayVerticalOffset,
                           ),
                         ),
                       ),
@@ -1735,12 +1758,14 @@ class _OnboardingOverlay extends StatelessWidget {
     this.secondaryText,
     required this.progress,
     required this.swipeProgress,
+    this.verticalOffset = 0,
   });
 
   final String text;
   final String? secondaryText;
   final double progress;
   final double swipeProgress;
+  final double verticalOffset;
 
   @override
   Widget build(BuildContext context) {
@@ -1755,7 +1780,7 @@ class _OnboardingOverlay extends StatelessWidget {
         child: Opacity(
           opacity: opacity,
           child: Transform.translate(
-            offset: Offset(0, (1 - eased) * 18),
+            offset: Offset(0, (1 - eased) * 18 + verticalOffset),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
