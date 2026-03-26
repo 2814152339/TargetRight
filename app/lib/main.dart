@@ -57,6 +57,8 @@ enum _OnboardingStage {
   completed,
 }
 
+const String _kUiDisplayFontFamily = 'SanJiCuYuanJian';
+
 class _ReminderTaskConfig {
   const _ReminderTaskConfig({
     required this.index,
@@ -1744,6 +1746,7 @@ class _OnboardingOrbText extends StatelessWidget {
               fontSize: 24,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.2,
+              fontFamily: _kUiDisplayFontFamily,
             ),
           ),
         ),
@@ -1792,6 +1795,7 @@ class _OnboardingOverlay extends StatelessWidget {
                     fontSize: 22,
                     height: 1.45,
                     fontWeight: FontWeight.w500,
+                    fontFamily: _kUiDisplayFontFamily,
                   ),
                 ),
                 AnimatedSize(
@@ -1832,6 +1836,7 @@ class _OnboardingOverlay extends StatelessWidget {
                                   fontSize: 22,
                                   height: 1.45,
                                   fontWeight: FontWeight.w500,
+                                  fontFamily: _kUiDisplayFontFamily,
                                 ),
                               ),
                             ),
@@ -2382,118 +2387,160 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
     final shouldSave = await showDialog<bool>(
       context: context,
       builder: (context) {
+        final baseTheme = Theme.of(context);
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Text(isEditing ? '编辑事项' : '新增事项'),
-              content: SizedBox(
-                width: 340,
-                child: SingleChildScrollView(
-                  child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    TextField(
-                      controller: titleController,
-                      autofocus: true,
-                      maxLength: 16,
-                      decoration: const InputDecoration(
-                        labelText: '事项标题',
-                        hintText: '例如：喝一杯水',
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: emojiController,
-                      maxLength: 4,
-                      decoration: const InputDecoration(
-                        labelText: 'Emoji 表情',
-                        hintText: '例如：💧',
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: descriptionController,
-                      minLines: 3,
-                      maxLines: 5,
-                      maxLength: 80,
-                      decoration: const InputDecoration(
-                        labelText: '事项描述',
-                        hintText: '补充提醒详情',
-                        alignLabelWithHint: true,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('提醒时间'),
-                      subtitle: Text(selectedTime.format(context)),
-                      trailing: const Icon(Icons.schedule),
-                      onTap: () async {
-                        final picked = await showTimePicker(
-                          context: context,
-                          initialTime: selectedTime,
-                        );
-                        if (picked == null) {
-                          return;
-                        }
-                        setDialogState(() {
-                          selectedTime = picked;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: <Widget>[
-                          ChoiceChip(
-                            label: const Text('系统闹铃'),
-                            selected:
-                                selectedAlertMode ==
-                                _ReminderAlertMode.systemAlarm,
-                            onSelected: (_) {
-                              setDialogState(() {
-                                selectedAlertMode =
-                                    _ReminderAlertMode.systemAlarm;
-                              });
-                            },
-                          ),
-                          ChoiceChip(
-                            label: const Text('仅震动'),
-                            selected:
-                                selectedAlertMode ==
-                                _ReminderAlertMode.vibrationOnly,
-                            onSelected: (_) {
-                              setDialogState(() {
-                                selectedAlertMode =
-                                    _ReminderAlertMode.vibrationOnly;
-                              });
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+            return Theme(
+              data: baseTheme.copyWith(
+                textTheme: baseTheme.textTheme.apply(
+                  fontFamily: _kUiDisplayFontFamily,
                 ),
+                inputDecorationTheme:
+                    baseTheme.inputDecorationTheme.copyWith(
+                      labelStyle: const TextStyle(
+                        fontFamily: _kUiDisplayFontFamily,
+                      ),
+                      hintStyle: TextStyle(
+                        fontFamily: _kUiDisplayFontFamily,
+                        color: Colors.black.withValues(alpha: 0.38),
+                      ),
+                    ),
+                chipTheme: baseTheme.chipTheme.copyWith(
+                  labelStyle: const TextStyle(
+                    fontFamily: _kUiDisplayFontFamily,
+                  ),
                 ),
               ),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text('取消'),
+              child: AlertDialog(
+                title: Text(isEditing ? '编辑事项' : '新增事项'),
+                content: SizedBox(
+                  width: 340,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        TextField(
+                          controller: titleController,
+                          autofocus: true,
+                          maxLength: 16,
+                          style: const TextStyle(
+                            fontFamily: _kUiDisplayFontFamily,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: '事项标题',
+                            hintText: '例如：喝一杯水',
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: emojiController,
+                          maxLength: 4,
+                          style: const TextStyle(
+                            fontFamily: _kUiDisplayFontFamily,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Emoji 表情',
+                            hintText: '例如：💧',
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: descriptionController,
+                          minLines: 3,
+                          maxLines: 5,
+                          maxLength: 80,
+                          style: const TextStyle(
+                            fontFamily: _kUiDisplayFontFamily,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: '事项描述',
+                            hintText: '补充提醒详情',
+                            alignLabelWithHint: true,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('提醒时间'),
+                          subtitle: Text(selectedTime.format(context)),
+                          trailing: const Icon(Icons.schedule),
+                          onTap: () async {
+                            final picked = await showTimePicker(
+                              context: context,
+                              initialTime: selectedTime,
+                            );
+                            if (picked == null) {
+                              return;
+                            }
+                            setDialogState(() {
+                              selectedTime = picked;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: <Widget>[
+                              ChoiceChip(
+                                label: const Text('系统闹铃'),
+                                selected:
+                                    selectedAlertMode ==
+                                    _ReminderAlertMode.systemAlarm,
+                                onSelected: (_) {
+                                  setDialogState(() {
+                                    selectedAlertMode =
+                                        _ReminderAlertMode.systemAlarm;
+                                  });
+                                },
+                              ),
+                              ChoiceChip(
+                                label: const Text('仅震动'),
+                                selected:
+                                    selectedAlertMode ==
+                                    _ReminderAlertMode.vibrationOnly,
+                                onSelected: (_) {
+                                  setDialogState(() {
+                                    selectedAlertMode =
+                                        _ReminderAlertMode.vibrationOnly;
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                FilledButton(
-                  onPressed: () {
-                    if (titleController.text.trim().isEmpty) {
-                      return;
-                    }
-                    Navigator.of(context).pop(true);
-                  },
-                  child: const Text('保存'),
-                ),
-              ],
+                actions: <Widget>[
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      textStyle: const TextStyle(
+                        fontFamily: _kUiDisplayFontFamily,
+                      ),
+                    ),
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('取消'),
+                  ),
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                      textStyle: const TextStyle(
+                        fontFamily: _kUiDisplayFontFamily,
+                      ),
+                    ),
+                    onPressed: () {
+                      if (titleController.text.trim().isEmpty) {
+                        return;
+                      }
+                      Navigator.of(context).pop(true);
+                    },
+                    child: const Text('保存'),
+                  ),
+                ],
+              ),
             );
           },
         );
@@ -3744,6 +3791,7 @@ class _OceanStatsPanel extends StatelessWidget {
                               fontWeight: FontWeight.w700,
                               color: Colors.white.withValues(alpha: 0.92),
                               letterSpacing: 2.0,
+                              fontFamily: _kUiDisplayFontFamily,
                               shadows: <Shadow>[
                                 Shadow(
                                   color: Colors.black.withValues(alpha: 0.16),
@@ -3773,6 +3821,7 @@ class _OceanStatsPanel extends StatelessWidget {
                                       color: Colors.white.withValues(
                                         alpha: 0.98,
                                       ),
+                                      fontFamily: _kUiDisplayFontFamily,
                                       shadows: <Shadow>[
                                         Shadow(
                                           color: Colors.black.withValues(
@@ -3814,6 +3863,7 @@ class _OceanStatsPanel extends StatelessWidget {
                                   height: 1.35,
                                   fontWeight: FontWeight.w600,
                                   color: Colors.white.withValues(alpha: 0.86),
+                                  fontFamily: _kUiDisplayFontFamily,
                                   shadows: <Shadow>[
                                     Shadow(
                                       color: Colors.black.withValues(
