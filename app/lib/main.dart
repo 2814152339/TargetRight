@@ -105,6 +105,8 @@ abstract class _CloudStatsRepository {
   Future<_CloudStats> fetchStats();
 
   Future<_CloudStats> uploadContribution(double ml);
+
+  Future<void> reset();
 }
 
 class _LocalCloudStatsRepository implements _CloudStatsRepository {
@@ -171,6 +173,17 @@ class _LocalCloudStatsRepository implements _CloudStatsRepository {
       totalMl: _totalMl,
       dailyMlByDate: Map<String, double>.unmodifiable(_dailyMlByDate),
     );
+  }
+
+  @override
+  Future<void> reset() async {
+    final prefs = await _preferences();
+    _userMl = 0;
+    _totalMl = 0;
+    _dailyMlByDate = <String, double>{};
+    await prefs.remove(_userMlKey);
+    await prefs.remove(_totalMlKey);
+    await prefs.remove(_dailyMlByDateKey);
   }
 }
 
@@ -311,6 +324,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   bool _showOnboardingSource = false;
   bool _showOnboardingCards = false;
   bool _onboardingCompleted = false;
+  int _onboardingResetSeed = 0;
   Completer<void>? _rightSwipeCompleter;
   Completer<void>? _cardTapCompleter;
   Completer<void>? _firstReminderCompleter;
@@ -510,6 +524,10 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       _onboardingCardsEntryController.value = 1;
       return;
     }
+    await _resetIncompleteOnboardingProgress();
+    if (!mounted) {
+      return;
+    }
     setState(() {
       _onboardingCompleted = false;
       _onboardingStage = _OnboardingStage.hidden;
@@ -520,13 +538,54 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       _showOnboardingCards = false;
       _orbStoredMl = 0;
       _debugOrbForceFull = false;
+      _onboardingOverlayText = null;
+      _onboardingOverlaySecondaryText = null;
+      _cardIntroOverlayText = null;
+      _cardIntroOverlaySecondaryText = null;
+      _onboardingOrbText = null;
     });
+    _panelController.value = 0;
+    _oceanPanelController.value = 0;
+    _calendarSheetController.value = 0;
+    _onboardingOrbController.value = 0;
+    _onboardingOverlayController.value = 0;
+    _cardIntroOverlayController.value = 0;
+    _onboardingOrbTextController.value = 0;
+    _onboardingRainFillController.value = 0;
     _onboardingCardsEntryController.value = 0;
     await _saveOrbStoredMl();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _runOnboardingFlow();
       }
+    });
+  }
+
+  Future<void> _resetIncompleteOnboardingProgress() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_orbStoredMlKey);
+    await prefs.remove(_SlideOutReplicaPanelState._reminderCardsStorageKey);
+    await _cloudStatsRepository.reset();
+    if (Platform.isIOS) {
+      try {
+        await _alarmKitChannel.invokeMethod<void>(
+          'syncReminderAlarms',
+          <String, dynamic>{'tasks': const <Map<String, dynamic>>[]},
+        );
+      } on PlatformException {
+        _reminderScheduler.updateTasks(const <_ReminderTaskConfig>[]);
+      }
+    } else {
+      _reminderScheduler.updateTasks(const <_ReminderTaskConfig>[]);
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _cloudStats = const _CloudStats();
+      _orbStoredMl = 0;
+      _debugOrbForceFull = false;
+      _onboardingResetSeed++;
     });
   }
 
@@ -1005,6 +1064,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
                 return Stack(
                   children: <Widget>[
                     _SlideOutReplicaPanel(
+                      key: ValueKey<int>(_onboardingResetSeed),
                       progress: leftPanelProgress,
                       cardsRevealProgress: !_isOnboardingActive
                           ? 1.0
@@ -1854,6 +1914,7 @@ class _OnboardingOverlay extends StatelessWidget {
 
 class _SlideOutReplicaPanel extends StatefulWidget {
   const _SlideOutReplicaPanel({
+    super.key,
     required this.progress,
     required this.cardsRevealProgress,
     required this.showCards,
