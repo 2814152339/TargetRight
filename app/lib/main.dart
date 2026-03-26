@@ -296,6 +296,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   String? _onboardingOverlayText;
   String? _onboardingOverlaySecondaryText;
   String? _onboardingOrbText;
+  int _onboardingOverlayVersion = 0;
   bool _onboardingCardUnlocked = false;
   bool _onboardingOceanUnlocked = false;
   bool _onboardingCalendarUnlocked = false;
@@ -689,6 +690,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     if (!mounted) {
       return;
     }
+    final version = ++_onboardingOverlayVersion;
     setState(() {
       _onboardingOverlayText = text;
       _onboardingOverlaySecondaryText = secondaryText;
@@ -703,18 +705,22 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       return;
     }
     if (!fadeOnSwipe) {
-      await _fadeOutOverlayPrompt();
+      await _fadeOutOverlayPrompt(expectedVersion: version);
     }
   }
 
-  Future<void> _fadeOutOverlayPrompt() async {
+  Future<void> _fadeOutOverlayPrompt({int? expectedVersion}) async {
     if (_onboardingOverlayText == null) {
       return;
     }
+    final versionAtStart = expectedVersion ?? _onboardingOverlayVersion;
     await _onboardingOverlayController.reverse(
       from: _onboardingOverlayController.value,
     );
     if (!mounted) {
+      return;
+    }
+    if (versionAtStart != _onboardingOverlayVersion) {
       return;
     }
     setState(() {
@@ -2419,6 +2425,7 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
     final cardsReveal = Curves.easeOutCubic.transform(
       widget.cardsRevealProgress.clamp(0.0, 1.0),
     );
+    final cardsEntryOffset = (1 - cardsReveal) * 28;
 
     return Positioned.fill(
       child: IgnorePointer(
@@ -2488,57 +2495,69 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                                   ),
                                 ),
                                 Positioned.fill(
-                                  child: GestureDetector(
-                                    behavior: HitTestBehavior.opaque,
-                                    onVerticalDragUpdate: (details) {
-                                      if (!_scrollController.hasClients) {
-                                        return;
-                                      }
-                                      _lastDragDelta = details.delta.dy;
-                                      final next =
-                                          (_scrollController.offset -
-                                                  details.delta.dy *
-                                                      _dragResponse)
-                                              .clamp(
-                                                0.0,
-                                                _scrollController
-                                                    .position
-                                                    .maxScrollExtent,
-                                              );
-                                      _scrollController.jumpTo(next);
-                                    },
-                                    onVerticalDragEnd: (details) {
-                                      _snapToNearestSlot(
-                                        details.primaryVelocity ?? 0.0,
-                                      );
-                                    },
-                                    onVerticalDragCancel: () {
-                                      _snapToNearestSlot();
-                                    },
-                                    child: Stack(
-                                      children: <Widget>[
-                                        for (var i = 0; i < _cards.length; i++)
-                                          FanReplicaCard(
-                                            item: _cards[i],
-                                            itemIndex: i,
-                                            activeIndex: fractionalIndex,
-                                            panelProgress: widget.progress,
-                                            cardsRevealProgress: cardsReveal,
-                                            screenSize: media,
-                                            displayTitle: _displayTitleFor(i),
-                                            displayEmoji: _displayEmojiFor(i),
-                                            isPlaceholder:
-                                                _displayPlaceholderFor(i),
-                                            showGlassPlus:
-                                                _customReminderTitles[i] ==
-                                                null,
-                                            useFullSaturation:
-                                                _displaySaturationFor(i),
-                                            onTap: () {
-                                              _openReminderDialogForCard(i);
-                                            },
-                                          ),
-                                      ],
+                                  child: Opacity(
+                                    opacity: cardsReveal,
+                                    child: Transform.translate(
+                                      offset: Offset(-cardsEntryOffset, cardsEntryOffset),
+                                      child: GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onVerticalDragUpdate: cardsReveal < 0.999
+                                            ? null
+                                            : (details) {
+                                                if (!_scrollController.hasClients) {
+                                                  return;
+                                                }
+                                                _lastDragDelta = details.delta.dy;
+                                                final next =
+                                                    (_scrollController.offset -
+                                                            details.delta.dy *
+                                                                _dragResponse)
+                                                        .clamp(
+                                                          0.0,
+                                                          _scrollController
+                                                              .position
+                                                              .maxScrollExtent,
+                                                        );
+                                                _scrollController.jumpTo(next);
+                                              },
+                                        onVerticalDragEnd: cardsReveal < 0.999
+                                            ? null
+                                            : (details) {
+                                                _snapToNearestSlot(
+                                                  details.primaryVelocity ?? 0.0,
+                                                );
+                                              },
+                                        onVerticalDragCancel: cardsReveal < 0.999
+                                            ? null
+                                            : () {
+                                                _snapToNearestSlot();
+                                              },
+                                        child: Stack(
+                                          children: <Widget>[
+                                            for (var i = 0; i < _cards.length; i++)
+                                              FanReplicaCard(
+                                                item: _cards[i],
+                                                itemIndex: i,
+                                                activeIndex: fractionalIndex,
+                                                panelProgress: widget.progress,
+                                                cardsRevealProgress: cardsReveal,
+                                                screenSize: media,
+                                                displayTitle: _displayTitleFor(i),
+                                                displayEmoji: _displayEmojiFor(i),
+                                                isPlaceholder:
+                                                    _displayPlaceholderFor(i),
+                                                showGlassPlus:
+                                                    _customReminderTitles[i] ==
+                                                    null,
+                                                useFullSaturation:
+                                                    _displaySaturationFor(i),
+                                                onTap: () {
+                                                  _openReminderDialogForCard(i);
+                                                },
+                                              ),
+                                          ],
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -2686,8 +2705,7 @@ class FanReplicaCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settledIndex = itemIndex - activeIndex;
-    final effectiveProgress =
-        Curves.easeOutCubic.transform(panelProgress) * cardsRevealProgress;
+    final effectiveProgress = cardsRevealProgress;
     final entryShift = (1 - effectiveProgress) * 3.2;
     final trackIndex = settledIndex + entryShift;
     final lowerIndex = trackIndex.floor();
