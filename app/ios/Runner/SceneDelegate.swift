@@ -12,4 +12,16 @@ class SceneDelegate: FlutterSceneDelegate {
       AlarmKitBridge.shared.register(binaryMessenger: controller.binaryMessenger)
     }
   }
+
+  override func stateRestorationActivity(for scene: UIScene) -> NSUserActivity? {
+    nil
+  }
+
+  override func scene(
+    _ scene: UIScene,
+    restoreInteractionStateWith stateRestorationActivity: NSUserActivity
+  ) {
+    // Intentionally ignore any restored scene state so onboarding always
+    // starts from our explicit app-controlled state.
+  }
 }
