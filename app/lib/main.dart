@@ -257,6 +257,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   late final AnimationController _calendarSheetController;
   late final AnimationController _onboardingOrbController;
   late final AnimationController _onboardingOverlayController;
+  late final AnimationController _cardIntroOverlayController;
   late final AnimationController _onboardingOrbTextController;
   late final AnimationController _onboardingRainFillController;
   late final AnimationController _onboardingCardsEntryController;
@@ -295,8 +296,11 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   _OnboardingStage _onboardingStage = _OnboardingStage.hidden;
   String? _onboardingOverlayText;
   String? _onboardingOverlaySecondaryText;
+  String? _cardIntroOverlayText;
+  String? _cardIntroOverlaySecondaryText;
   String? _onboardingOrbText;
   int _onboardingOverlayVersion = 0;
+  int _cardIntroOverlayVersion = 0;
   bool _onboardingCardUnlocked = false;
   bool _onboardingOceanUnlocked = false;
   bool _onboardingCalendarUnlocked = false;
@@ -335,6 +339,11 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       duration: const Duration(milliseconds: 1800),
     );
     _onboardingOverlayController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+      reverseDuration: const Duration(milliseconds: 700),
+    );
+    _cardIntroOverlayController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
       reverseDuration: const Duration(milliseconds: 700),
@@ -461,6 +470,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     _onboardingCardsEntryController.dispose();
     _onboardingRainFillController.dispose();
     _onboardingOrbTextController.dispose();
+    _cardIntroOverlayController.dispose();
     _onboardingOverlayController.dispose();
     _onboardingOrbController.dispose();
     _panelController.dispose();
@@ -556,9 +566,12 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       _onboardingStage = _OnboardingStage.cardIntro;
       _onboardingOverlayText = null;
       _onboardingOverlaySecondaryText = null;
+      _cardIntroOverlayText = null;
+      _cardIntroOverlaySecondaryText = null;
       _showOnboardingCards = false;
     });
     _onboardingOverlayController.value = 0;
+    _cardIntroOverlayController.value = 0;
     _onboardingCardsEntryController.value = 0;
     await _panelController.animateTo(
       1.0,
@@ -566,13 +579,13 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       curve: Curves.easeOutCubic,
     );
     await Future<void>.delayed(const Duration(milliseconds: 120));
-    await _showOverlayPrompt(
+    await _showCardIntroPrompt(
       '生活太满',
       secondaryText: '我们只取12个时刻',
       hold: const Duration(milliseconds: 1500),
       secondaryDelay: const Duration(milliseconds: 520),
     );
-    await _showOverlayPrompt(
+    await _showCardIntroPrompt(
       '点击添加你的第一个时刻吧~',
       hold: const Duration(milliseconds: 1400),
     );
@@ -740,6 +753,61 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     setState(() {
       _onboardingOverlayText = null;
       _onboardingOverlaySecondaryText = null;
+    });
+  }
+
+  Future<void> _showCardIntroPrompt(
+    String text, {
+    String? secondaryText,
+    Duration hold = const Duration(milliseconds: 1300),
+    Duration secondaryDelay = const Duration(milliseconds: 420),
+  }) async {
+    if (!mounted) {
+      return;
+    }
+    final version = ++_cardIntroOverlayVersion;
+    setState(() {
+      _cardIntroOverlayText = text;
+      _cardIntroOverlaySecondaryText = null;
+    });
+    await _cardIntroOverlayController.forward(from: 0);
+    if (secondaryText != null) {
+      await Future<void>.delayed(secondaryDelay);
+      if (!mounted || version != _cardIntroOverlayVersion) {
+        return;
+      }
+      setState(() {
+        _cardIntroOverlaySecondaryText = secondaryText;
+      });
+    }
+    await Future<void>.delayed(hold);
+    if (!mounted) {
+      return;
+    }
+    await _fadeOutCardIntroPrompt(expectedVersion: version);
+  }
+
+  Future<void> _fadeOutCardIntroPrompt({int? expectedVersion}) async {
+    if (_cardIntroOverlayText == null) {
+      return;
+    }
+    if (expectedVersion != null &&
+        expectedVersion != _cardIntroOverlayVersion) {
+      return;
+    }
+    await _cardIntroOverlayController.reverse(
+      from: _cardIntroOverlayController.value,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (expectedVersion != null &&
+        expectedVersion != _cardIntroOverlayVersion) {
+      return;
+    }
+    setState(() {
+      _cardIntroOverlayText = null;
+      _cardIntroOverlaySecondaryText = null;
     });
   }
 
@@ -1048,6 +1116,17 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
                                     _OnboardingStage.waitingRightSwipe
                                 ? leftPanelProgress
                                 : 0.0,
+                          ),
+                        ),
+                      ),
+                    if (_cardIntroOverlayText != null)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: _OnboardingOverlay(
+                            text: _cardIntroOverlayText!,
+                            secondaryText: _cardIntroOverlaySecondaryText,
+                            progress: _cardIntroOverlayController.value,
+                            swipeProgress: 0.0,
                           ),
                         ),
                       ),
