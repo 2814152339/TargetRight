@@ -263,6 +263,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
   static const double _bottomSheetRevealDistance = 168;
   static const String _orbStoredMlKey = 'orb_stored_ml';
   static const String _onboardingCompletedKey = 'onboarding_completed_v1';
+  static const String _installFingerprintKey = 'app_install_fingerprint_v1';
   static const MethodChannel _alarmKitChannel = MethodChannel(
     'jinshi/alarmkit',
   );
@@ -506,6 +507,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
 
   Future<void> _initializeOnboarding() async {
     final prefs = await SharedPreferences.getInstance();
+    final didResetForInstall = await _maybeResetForNewInstall(prefs);
     final completed = prefs.getBool(_onboardingCompletedKey) ?? false;
     if (!mounted) {
       return;
@@ -524,7 +526,9 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       _onboardingCardsEntryController.value = 1;
       return;
     }
-    await _resetIncompleteOnboardingProgress();
+    if (!didResetForInstall) {
+      await _resetIncompleteOnboardingProgress();
+    }
     if (!mounted) {
       return;
     }
@@ -559,6 +563,30 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
         _runOnboardingFlow();
       }
     });
+  }
+
+  Future<bool> _maybeResetForNewInstall(SharedPreferences prefs) async {
+    if (!Platform.isIOS) {
+      return false;
+    }
+    try {
+      final fingerprint = await _alarmKitChannel.invokeMethod<String>(
+        'currentInstallFingerprint',
+      );
+      if (fingerprint == null || fingerprint.isEmpty) {
+        return false;
+      }
+      final storedFingerprint = prefs.getString(_installFingerprintKey);
+      if (storedFingerprint == fingerprint) {
+        return false;
+      }
+      await prefs.setString(_installFingerprintKey, fingerprint);
+      await prefs.setBool(_onboardingCompletedKey, false);
+      await _resetIncompleteOnboardingProgress();
+      return true;
+    } on PlatformException {
+      return false;
+    }
   }
 
   Future<void> _resetIncompleteOnboardingProgress() async {

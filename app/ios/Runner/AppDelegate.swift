@@ -49,6 +49,8 @@ final class AlarmKitBridge {
 
   private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     switch call.method {
+    case "currentInstallFingerprint":
+      result(Bundle.main.bundlePath)
     case "consumePendingRewardMl":
       let defaults = UserDefaults.standard
       let pendingRewardMl = defaults.double(forKey: pendingRewardMlKey)
