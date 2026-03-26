@@ -539,10 +539,10 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       _onboardingStage = _OnboardingStage.orbAppearing;
     });
     await _onboardingOrbController.forward(from: 0);
-    await Future<void>.delayed(const Duration(milliseconds: 280));
+    await Future<void>.delayed(const Duration(milliseconds: 120));
     await _showOrbOnboardingText('12:05', hold: const Duration(milliseconds: 1300));
     await _showOrbOnboardingText(
-      '"它现在是空的"',
+      '它现在是空的',
       hold: const Duration(milliseconds: 1500),
     );
 
@@ -552,7 +552,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     });
     _rightSwipeCompleter = Completer<void>();
     await _showOverlayPrompt(
-      '现在，向右滑探索未来',
+      '现在,向右滑动',
       persistUntilComplete: _rightSwipeCompleter,
       fadeOnSwipe: true,
     );
@@ -604,7 +604,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     await _firstReminderCompleter!.future;
 
     await _showOverlayPrompt(
-      '每完成一次，就会为你下一场雨',
+      '每完成一次,就会为你下一场雨',
       hold: const Duration(milliseconds: 1600),
     );
     _returnHomeCompleter = Completer<void>();
@@ -632,7 +632,7 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     await _saveOrbStoredMl();
 
     await _showOverlayPrompt(
-      '5次即可长按球体，让你的雨，汇入远方的海',
+      '5次即可长按球体,让你的雨,汇入远方的海',
       hold: const Duration(milliseconds: 2000),
     );
 
@@ -651,21 +651,21 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
       _onboardingStage = _OnboardingStage.oceanIntro;
     });
     await _showOverlayPrompt(
-      '向左滑，进入远方的海',
+      '向左滑,进入远方的海',
       hold: const Duration(milliseconds: 1500),
     );
     setState(() {
       _onboardingStage = _OnboardingStage.calendarIntro;
     });
     await _showOverlayPrompt(
-      '向上滑，进入历程',
+      '向上滑,进入历程',
       hold: const Duration(milliseconds: 1500),
     );
     setState(() {
       _onboardingStage = _OnboardingStage.finalIntro;
     });
     await _showOverlayPrompt(
-      '12:05，现在收集你的第一个时刻',
+      '12:05,现在收集你的第一个时刻',
       hold: const Duration(milliseconds: 1800),
     );
     await _completeOnboarding();
@@ -1769,25 +1769,50 @@ class _OnboardingOverlay extends StatelessWidget {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                if (secondaryText != null) ...<Widget>[
-                  const SizedBox(height: 8),
-                  Opacity(
-                    opacity: eased,
-                    child: Transform.translate(
-                      offset: Offset(0, (1 - eased) * 12),
-                      child: Text(
-                        secondaryText!,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.black.withValues(alpha: 0.74),
-                          fontSize: 22,
-                          height: 1.45,
-                          fontWeight: FontWeight.w500,
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeOutCubic,
+                  child: secondaryText == null
+                      ? const SizedBox.shrink()
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            const SizedBox(height: 8),
+                            TweenAnimationBuilder<double>(
+                              duration: const Duration(milliseconds: 360),
+                              curve: Curves.easeOutCubic,
+                              tween: Tween<double>(begin: 0, end: 1),
+                              builder: (context, secondaryProgress, child) {
+                                final secondaryOpacity =
+                                    (secondaryProgress * opacity).clamp(
+                                      0.0,
+                                      1.0,
+                                    );
+                                return Opacity(
+                                  opacity: secondaryOpacity,
+                                  child: Transform.translate(
+                                    offset: Offset(
+                                      0,
+                                      (1 - secondaryProgress) * 14,
+                                    ),
+                                    child: child,
+                                  ),
+                                );
+                              },
+                              child: Text(
+                                secondaryText!,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.black.withValues(alpha: 0.74),
+                                  fontSize: 22,
+                                  height: 1.45,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ],
             ),
           ),
