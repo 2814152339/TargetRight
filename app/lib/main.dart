@@ -2579,111 +2579,115 @@ class _SlideOutReplicaPanelState extends State<_SlideOutReplicaPanel> {
                                         widthFactor: contentReveal,
                                         child: Transform.translate(
                                           offset: Offset(contentEntryOffset, 0),
-                                          child: Stack(
-                                            children: <Widget>[
-                                              Positioned(
-                                                left: media.width * 0.050,
-                                                top: media.height * 0.30,
-                                                child: LeftSegmentIndicator(
-                                                  progress: progress,
-                                                  count: _cards.length,
-                                                ),
-                                              ),
-                                              SingleChildScrollView(
-                                                controller: _scrollController,
-                                                physics:
-                                                    const NeverScrollableScrollPhysics(),
-                                                child: SizedBox(
-                                                  // Add enough trailing extent so card 12 can
-                                                  // still reach the center slot before stop.
-                                                  height:
-                                                      media.height +
-                                                      (_cards.length - 1) *
-                                                          _stepExtent +
-                                                      1,
-                                                ),
-                                              ),
-                                              Positioned.fill(
-                                                child: GestureDetector(
-                                                  behavior:
-                                                      HitTestBehavior.opaque,
-                                                  onVerticalDragUpdate: (details) {
-                                                    if (!_scrollController
-                                                        .hasClients) {
-                                                      return;
-                                                    }
-                                                    _lastDragDelta =
-                                                        details.delta.dy;
-                                                    final next =
-                                                        (_scrollController
-                                                                    .offset -
-                                                                details.delta.dy *
-                                                                    _dragResponse)
-                                                            .clamp(
-                                                              0.0,
-                                                              _scrollController
-                                                                  .position
-                                                                  .maxScrollExtent,
-                                                            );
-                                                    _scrollController.jumpTo(
-                                                      next,
-                                                    );
-                                                  },
-                                                  onVerticalDragEnd: (details) {
-                                                    _snapToNearestSlot(
-                                                      details.primaryVelocity ??
-                                                          0.0,
-                                                    );
-                                                  },
-                                                  onVerticalDragCancel: () {
-                                                    _snapToNearestSlot();
-                                                  },
-                                                  child: Stack(
-                                                    children: <Widget>[
-                                                      for (
-                                                        var i = 0;
-                                                        i < _cards.length;
-                                                        i++
-                                                      )
-                                                        FanReplicaCard(
-                                                          item: _cards[i],
-                                                          itemIndex: i,
-                                                          activeIndex:
-                                                              fractionalIndex,
-                                                          panelProgress:
-                                                              widget
-                                                                  .cardsRevealProgress,
-                                                          screenSize: media,
-                                                          displayTitle:
-                                                              _displayTitleFor(
-                                                                i,
-                                                              ),
-                                                          displayEmoji:
-                                                              _displayEmojiFor(
-                                                                i,
-                                                              ),
-                                                          isPlaceholder:
-                                                              _displayPlaceholderFor(
-                                                                i,
-                                                              ),
-                                                          showGlassPlus:
-                                                              _customReminderTitles[i] ==
-                                                              null,
-                                                          useFullSaturation:
-                                                              _displaySaturationFor(
-                                                                i,
-                                                              ),
-                                                          onTap: () {
-                                                            _openReminderDialogForCard(
-                                                              i,
-                                                            );
-                                                          },
-                                                        ),
-                                                    ],
+                                          child: SizedBox(
+                                            width: media.width,
+                                            height: media.height,
+                                            child: Stack(
+                                              children: <Widget>[
+                                                Positioned(
+                                                  left: media.width * 0.050,
+                                                  top: media.height * 0.30,
+                                                  child: LeftSegmentIndicator(
+                                                    progress: progress,
+                                                    count: _cards.length,
                                                   ),
                                                 ),
-                                              ),
-                                            ],
+                                                SingleChildScrollView(
+                                                  controller: _scrollController,
+                                                  physics:
+                                                      const NeverScrollableScrollPhysics(),
+                                                  child: SizedBox(
+                                                    // Add enough trailing extent so card 12 can
+                                                    // still reach the center slot before stop.
+                                                    height:
+                                                        media.height +
+                                                        (_cards.length - 1) *
+                                                            _stepExtent +
+                                                        1,
+                                                  ),
+                                                ),
+                                                Positioned.fill(
+                                                  child: GestureDetector(
+                                                    behavior:
+                                                        HitTestBehavior.opaque,
+                                                    onVerticalDragUpdate: (details) {
+                                                      if (!_scrollController
+                                                          .hasClients) {
+                                                        return;
+                                                      }
+                                                      _lastDragDelta =
+                                                          details.delta.dy;
+                                                      final next =
+                                                          (_scrollController
+                                                                      .offset -
+                                                                  details.delta.dy *
+                                                                      _dragResponse)
+                                                              .clamp(
+                                                                0.0,
+                                                                _scrollController
+                                                                    .position
+                                                                    .maxScrollExtent,
+                                                              );
+                                                      _scrollController.jumpTo(
+                                                        next,
+                                                      );
+                                                    },
+                                                    onVerticalDragEnd: (details) {
+                                                      _snapToNearestSlot(
+                                                        details.primaryVelocity ??
+                                                            0.0,
+                                                      );
+                                                    },
+                                                    onVerticalDragCancel: () {
+                                                      _snapToNearestSlot();
+                                                    },
+                                                    child: Stack(
+                                                      children: <Widget>[
+                                                        for (
+                                                          var i = 0;
+                                                          i < _cards.length;
+                                                          i++
+                                                        )
+                                                          FanReplicaCard(
+                                                            item: _cards[i],
+                                                            itemIndex: i,
+                                                            activeIndex:
+                                                                fractionalIndex,
+                                                            panelProgress:
+                                                                widget
+                                                                    .cardsRevealProgress,
+                                                            screenSize: media,
+                                                            displayTitle:
+                                                                _displayTitleFor(
+                                                                  i,
+                                                                ),
+                                                            displayEmoji:
+                                                                _displayEmojiFor(
+                                                                  i,
+                                                                ),
+                                                            isPlaceholder:
+                                                                _displayPlaceholderFor(
+                                                                  i,
+                                                                ),
+                                                            showGlassPlus:
+                                                                _customReminderTitles[i] ==
+                                                                null,
+                                                            useFullSaturation:
+                                                                _displaySaturationFor(
+                                                                  i,
+                                                                ),
+                                                            onTap: () {
+                                                              _openReminderDialogForCard(
+                                                                i,
+                                                              );
+                                                            },
+                                                          ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ),
