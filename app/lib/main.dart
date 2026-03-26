@@ -551,16 +551,21 @@ class _DynamicIslandDripPageState extends State<DynamicIslandDripPage>
     if (!mounted) {
       return;
     }
+    _onboardingOverlayController.stop();
     setState(() {
       _onboardingStage = _OnboardingStage.cardIntro;
+      _onboardingOverlayText = null;
+      _onboardingOverlaySecondaryText = null;
       _showOnboardingCards = false;
     });
+    _onboardingOverlayController.value = 0;
     _onboardingCardsEntryController.value = 0;
     await _panelController.animateTo(
       1.0,
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
     );
+    await Future<void>.delayed(const Duration(milliseconds: 120));
     await _showOverlayPrompt(
       '生活太满',
       secondaryText: '我们只取12个时刻',
